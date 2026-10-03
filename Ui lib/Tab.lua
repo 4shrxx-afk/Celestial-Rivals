@@ -194,7 +194,7 @@ return function(Window, Utils, ThemeData, opts)
         end)
 
         table.insert(Window._Rows, { Frame = row, Name = rowName })
-        return row
+        return row, nameLbl
     end
 
     function Tab:Section(title)

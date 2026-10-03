@@ -630,6 +630,7 @@ return function(Window, Utils, ThemeData)
             Text = n,
             Font = ThemeData.Fonts.Medium,
             TextSize = ThemeData.Sizes.Small,
+            TextXAlignment = Enum.TextXAlignment.Left,
             TextColor3 = isActive and Color3.fromRGB(255, 255, 255) or Theme.TextDim,
             BackgroundColor3 = Color3.fromRGB(60, 60, 72),
             BackgroundTransparency = isActive and 0 or 1,
@@ -1392,7 +1393,7 @@ return function(Window, Utils, ThemeData, opts)
         end)
 
         table.insert(Window._Rows, { Frame = row, Name = rowName })
-        return row
+        return row, nameLbl
     end
 
     function Tab:Section(title)
@@ -1560,7 +1561,10 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
     local suffix = t.Suffix or ""
     Library.Flags[rowName] = val
 
-    local row = Tab:_Row(rowName, 56)
+    local row, title = Tab:_Row(rowName, 56)
+    -- Lock the title to the top line so it never sinks toward the track.
+    title.Position = UDim2.new(0, 14, 0, 8)
+    title.Size = UDim2.new(1, -120, 0, 16)
 
     local valLbl = Utils.New("TextLabel", {
         Text = tostring(val),
@@ -1674,7 +1678,10 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
     local a, b = t.DefaultMin or 200, t.DefaultMax or 700
     Library.Flags[rowName] = { a, b }
 
-    local row = Tab:_Row(rowName, 60)
+    local row, title = Tab:_Row(rowName, 60)
+    -- Lock the title to the top line so it never sinks toward the track.
+    title.Position = UDim2.new(0, 14, 0, 8)
+    title.Size = UDim2.new(1, -160, 0, 16)
 
     local valLbl = Utils.New("TextLabel", {
         Text = joinRange(a, b),
@@ -1793,12 +1800,15 @@ return function(Tab, Utils, ThemeData, Library, t)
     local selected = t.Default or options[1]
     Library.Flags[rowName] = selected
 
-    local row = Tab:_Row(rowName, 36)
+    local row, title = Tab:_Row(rowName, 36)
     row.ClipsDescendants = true
+    -- Lock the header text to the top 36px so it never drifts into the list.
+    title.Position = UDim2.new(0, 14, 0, 0)
+    title.Size = UDim2.new(1, -200, 0, 36)
 
     local chev = Icons.New("chevron-down", 14, Window.Theme.TextDim, {
         AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -12, 0.5, 0),
+        Position = UDim2.new(1, -12, 0, 18),
         Parent = row,
     })
     chev:SetAttribute("IRole", "Dim")
@@ -1810,7 +1820,7 @@ return function(Tab, Utils, ThemeData, Library, t)
         TextColor3 = Window.Theme.TextDim,
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -34, 0.5, 0),
+        Position = UDim2.new(1, -34, 0, 18),
         Size = UDim2.new(0, 150, 0, 18),
         TextXAlignment = Enum.TextXAlignment.Right,
         TextTruncate = Enum.TextTruncate.AtEnd,
@@ -1836,9 +1846,10 @@ return function(Tab, Utils, ThemeData, Library, t)
     for i, opt in ipairs(options) do
         local isSel = (opt == selected)
         local ob = Utils.New("TextButton", {
-            Text = "  " .. tostring(opt),
+            Text = tostring(opt),
             Font = ThemeData.Fonts.Regular,
             TextSize = ThemeData.Sizes.Small,
+            TextXAlignment = Enum.TextXAlignment.Left,
             TextColor3 = isSel and Color3.fromRGB(255, 255, 255) or Window.Theme.TextDim,
             BackgroundColor3 = Window.Accent,
             BackgroundTransparency = isSel and 0.85 or 1,
@@ -1848,12 +1859,13 @@ return function(Tab, Utils, ThemeData, Library, t)
             Parent = row,
         })
         Utils.Corner(ob, 6)
+        Utils.Pad(ob, 12, 0, 0, 0)
         ob.MouseButton1Click:Connect(function()
             selected = opt
             Library.Flags[rowName] = opt
             selLbl.Text = tostring(opt)
             for _, o2 in ipairs(optBtns) do
-                local on = (o2.Text:sub(3) == tostring(opt))
+                local on = (o2.Text == tostring(opt))
                 o2.BackgroundTransparency = on and 0.85 or 1
                 if on then o2.BackgroundColor3 = Window.Accent end
                 o2.TextColor3 = on and Color3.fromRGB(255, 255, 255) or Window.Theme.TextDim
@@ -2025,7 +2037,7 @@ return function(Library, deps)
         Utils.Stroke(Sidebar, T.Stroke, 0.95, 1)
 
         local SearchBox = Utils.New("Frame", {
-            Position = UDim2.new(0, 12, 0, 0),
+            Position = UDim2.new(0, 12, 0, 12),
             Size = UDim2.new(1, -24, 0, 32),
             BackgroundColor3 = T.Search,
             BorderSizePixel = 0,
@@ -2058,42 +2070,26 @@ return function(Library, deps)
 
         local Logo = Utils.New("Frame", {
             BackgroundTransparency = 1,
-            Position = UDim2.new(0, 12, 0, 40),
+            Position = UDim2.new(0, 12, 0, 52),
             Size = UDim2.new(1, -24, 0, 34),
             Parent = Sidebar,
         })
-        local L1 = Utils.New("TextLabel", {
-            Text = title1,
+        -- Single RichText label: a real space between halves, no TextBounds racing.
+        local Wordmark = Utils.New("TextLabel", {
             Font = ThemeData.Fonts.Title,
             TextSize = ThemeData.Sizes.Title,
             TextColor3 = T.Text,
             BackgroundTransparency = 1,
-            Size = UDim2.new(0, 0, 1, 0),
-            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.new(1, 0, 1, 0),
             TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            RichText = true,
             Parent = Logo,
         })
-        local L2 = Utils.New("TextLabel", {
-            Text = title2,
-            Font = ThemeData.Fonts.Title,
-            TextSize = ThemeData.Sizes.Title,
-            TextColor3 = accent,
-            BackgroundTransparency = 1,
-            Size = UDim2.new(0, 0, 1, 0),
-            AutomaticSize = Enum.AutomaticSize.X,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = Logo,
-        })
-        L1:GetPropertyChangedSignal("TextBounds"):Connect(function()
-            L2.Position = UDim2.new(0, L1.TextBounds.X + 4, 0, 0)
-        end)
-        task.defer(function()
-            L2.Position = UDim2.new(0, L1.TextBounds.X + 4, 0, 0)
-        end)
 
         local TabHolder = Utils.New("ScrollingFrame", {
-            Position = UDim2.new(0, 8, 0, 82),
-            Size = UDim2.new(1, -16, 1, -90),
+            Position = UDim2.new(0, 8, 0, 94),
+            Size = UDim2.new(1, -16, 1, -102),
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             ScrollBarThickness = 0,
@@ -2116,6 +2112,12 @@ return function(Library, deps)
             Size = UDim2.new(0, 220, 0, 28),
             Parent = Main,
         })
+        local gear = Icons.Button("settings", 16, T.TextDim, {
+            AnchorPoint = Vector2.new(0, 0.5),
+            Position = UDim2.new(1, -142, 0.5, 0),
+            Parent = TopRight,
+        })
+        gear:SetAttribute("IRole", "Dim")
         local infoIcon = Icons.New("info", 14, T.TextDark, {
             AnchorPoint = Vector2.new(0, 0.5),
             Position = UDim2.new(1, -116, 0.5, 0),
@@ -2181,7 +2183,7 @@ return function(Library, deps)
         function Window:SetAccent(color)
             self.Accent = color
             Library._Accent = color
-            L2.TextColor3 = color
+            self:_RefreshWordmark()
             for _, tab in pairs(self.Tabs) do
                 if tab.Btn and tab.Active then
                     tab.Indicator.BackgroundColor3 = color
@@ -2231,6 +2233,21 @@ return function(Library, deps)
             if self._ActiveTab and self._ActiveTab.Icon then
                 self._ActiveTab.Icon.ImageColor3 = Color3.fromRGB(255, 255, 255)
             end
+            self:_RefreshWordmark()
+        end
+
+        function Window:_RefreshWordmark()
+            if not self._Wordmark then return end
+            local function rgb(c)
+                return string.format("rgb(%d,%d,%d)",
+                    math.floor(c.R * 255 + 0.5),
+                    math.floor(c.G * 255 + 0.5),
+                    math.floor(c.B * 255 + 0.5))
+            end
+            self._Wordmark.Text = string.format(
+                '<font color="%s">%s</font> <font color="%s">%s</font>',
+                rgb(self.Theme.Text), self._Title1,
+                rgb(self.Accent), self._Title2)
         end
 
         function Window:SetScale(s)
@@ -2318,12 +2335,6 @@ return function(Library, deps)
         local settingsFrame = BuildSettings(Window, Utils, ThemeData)
         Window._Settings = settingsFrame
 
-        local gear = Icons.Button("settings", 16, T.TextDim, {
-            Position = UDim2.new(0, 244, 0, 12),
-            ZIndex = 6,
-            Parent = Main,
-        })
-        gear:SetAttribute("IRole", "Dim")
         gear.MouseButton1Click:Connect(function()
             settingsFrame.Visible = not settingsFrame.Visible
         end)
@@ -2378,6 +2389,11 @@ return function(Library, deps)
             end
             return Tab
         end
+
+        Window._Wordmark = Wordmark
+        Window._Title1 = title1
+        Window._Title2 = title2
+        Window:_RefreshWordmark()
 
         table.insert(Library._Windows, Window)
         return Window

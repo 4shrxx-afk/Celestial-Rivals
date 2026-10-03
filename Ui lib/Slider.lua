@@ -24,7 +24,10 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
     local suffix = t.Suffix or ""
     Library.Flags[rowName] = val
 
-    local row = Tab:_Row(rowName, 56)
+    local row, title = Tab:_Row(rowName, 56)
+    -- Lock the title to the top line so it never sinks toward the track.
+    title.Position = UDim2.new(0, 14, 0, 8)
+    title.Size = UDim2.new(1, -120, 0, 16)
 
     local valLbl = Utils.New("TextLabel", {
         Text = tostring(val),
@@ -138,7 +141,10 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
     local a, b = t.DefaultMin or 200, t.DefaultMax or 700
     Library.Flags[rowName] = { a, b }
 
-    local row = Tab:_Row(rowName, 60)
+    local row, title = Tab:_Row(rowName, 60)
+    -- Lock the title to the top line so it never sinks toward the track.
+    title.Position = UDim2.new(0, 14, 0, 8)
+    title.Size = UDim2.new(1, -160, 0, 16)
 
     local valLbl = Utils.New("TextLabel", {
         Text = joinRange(a, b),

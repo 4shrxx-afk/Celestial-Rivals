@@ -138,7 +138,7 @@ return function(Library, deps)
         Utils.Stroke(Sidebar, T.Stroke, 0.95, 1)
 
         local SearchBox = Utils.New("Frame", {
-            Position = UDim2.new(0, 12, 0, 0),
+            Position = UDim2.new(0, 12, 0, 12),
             Size = UDim2.new(1, -24, 0, 32),
             BackgroundColor3 = T.Search,
             BorderSizePixel = 0,
@@ -171,42 +171,26 @@ return function(Library, deps)
 
         local Logo = Utils.New("Frame", {
             BackgroundTransparency = 1,
-            Position = UDim2.new(0, 12, 0, 40),
+            Position = UDim2.new(0, 12, 0, 52),
             Size = UDim2.new(1, -24, 0, 34),
             Parent = Sidebar,
         })
-        local L1 = Utils.New("TextLabel", {
-            Text = title1,
+        -- Single RichText label: a real space between halves, no TextBounds racing.
+        local Wordmark = Utils.New("TextLabel", {
             Font = ThemeData.Fonts.Title,
             TextSize = ThemeData.Sizes.Title,
             TextColor3 = T.Text,
             BackgroundTransparency = 1,
-            Size = UDim2.new(0, 0, 1, 0),
-            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.new(1, 0, 1, 0),
             TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            RichText = true,
             Parent = Logo,
         })
-        local L2 = Utils.New("TextLabel", {
-            Text = title2,
-            Font = ThemeData.Fonts.Title,
-            TextSize = ThemeData.Sizes.Title,
-            TextColor3 = accent,
-            BackgroundTransparency = 1,
-            Size = UDim2.new(0, 0, 1, 0),
-            AutomaticSize = Enum.AutomaticSize.X,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = Logo,
-        })
-        L1:GetPropertyChangedSignal("TextBounds"):Connect(function()
-            L2.Position = UDim2.new(0, L1.TextBounds.X + 4, 0, 0)
-        end)
-        task.defer(function()
-            L2.Position = UDim2.new(0, L1.TextBounds.X + 4, 0, 0)
-        end)
 
         local TabHolder = Utils.New("ScrollingFrame", {
-            Position = UDim2.new(0, 8, 0, 82),
-            Size = UDim2.new(1, -16, 1, -90),
+            Position = UDim2.new(0, 8, 0, 94),
+            Size = UDim2.new(1, -16, 1, -102),
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             ScrollBarThickness = 0,
@@ -229,6 +213,12 @@ return function(Library, deps)
             Size = UDim2.new(0, 220, 0, 28),
             Parent = Main,
         })
+        local gear = Icons.Button("settings", 16, T.TextDim, {
+            AnchorPoint = Vector2.new(0, 0.5),
+            Position = UDim2.new(1, -142, 0.5, 0),
+            Parent = TopRight,
+        })
+        gear:SetAttribute("IRole", "Dim")
         local infoIcon = Icons.New("info", 14, T.TextDark, {
             AnchorPoint = Vector2.new(0, 0.5),
             Position = UDim2.new(1, -116, 0.5, 0),
@@ -294,7 +284,7 @@ return function(Library, deps)
         function Window:SetAccent(color)
             self.Accent = color
             Library._Accent = color
-            L2.TextColor3 = color
+            self:_RefreshWordmark()
             for _, tab in pairs(self.Tabs) do
                 if tab.Btn and tab.Active then
                     tab.Indicator.BackgroundColor3 = color
@@ -344,6 +334,21 @@ return function(Library, deps)
             if self._ActiveTab and self._ActiveTab.Icon then
                 self._ActiveTab.Icon.ImageColor3 = Color3.fromRGB(255, 255, 255)
             end
+            self:_RefreshWordmark()
+        end
+
+        function Window:_RefreshWordmark()
+            if not self._Wordmark then return end
+            local function rgb(c)
+                return string.format("rgb(%d,%d,%d)",
+                    math.floor(c.R * 255 + 0.5),
+                    math.floor(c.G * 255 + 0.5),
+                    math.floor(c.B * 255 + 0.5))
+            end
+            self._Wordmark.Text = string.format(
+                '<font color="%s">%s</font> <font color="%s">%s</font>',
+                rgb(self.Theme.Text), self._Title1,
+                rgb(self.Accent), self._Title2)
         end
 
         function Window:SetScale(s)
@@ -431,12 +436,6 @@ return function(Library, deps)
         local settingsFrame = BuildSettings(Window, Utils, ThemeData)
         Window._Settings = settingsFrame
 
-        local gear = Icons.Button("settings", 16, T.TextDim, {
-            Position = UDim2.new(0, 244, 0, 12),
-            ZIndex = 6,
-            Parent = Main,
-        })
-        gear:SetAttribute("IRole", "Dim")
         gear.MouseButton1Click:Connect(function()
             settingsFrame.Visible = not settingsFrame.Visible
         end)
@@ -491,6 +490,11 @@ return function(Library, deps)
             end
             return Tab
         end
+
+        Window._Wordmark = Wordmark
+        Window._Title1 = title1
+        Window._Title2 = title2
+        Window:_RefreshWordmark()
 
         table.insert(Library._Windows, Window)
         return Window

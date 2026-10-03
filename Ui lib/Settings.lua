@@ -72,6 +72,7 @@ return function(Window, Utils, ThemeData)
             Text = n,
             Font = ThemeData.Fonts.Medium,
             TextSize = ThemeData.Sizes.Small,
+            TextXAlignment = Enum.TextXAlignment.Left,
             TextColor3 = isActive and Color3.fromRGB(255, 255, 255) or Theme.TextDim,
             BackgroundColor3 = Color3.fromRGB(60, 60, 72),
             BackgroundTransparency = isActive and 0 or 1,
