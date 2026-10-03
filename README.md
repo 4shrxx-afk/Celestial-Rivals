@@ -4,9 +4,9 @@ Roblox Rivals script project — starting with **CelestialUI**, a dark, rounded,
 
 > Loadstring (executor, one line):
 > ```lua
-> local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/YOUR-USERNAME/Celestial-Rivals/main/CelestialUI.lua"))()
+> local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/4shrxx-afk/Celestial-Rivals/main/CelestialUI.lua"))()
 > ```
-> Replace `YOUR-USERNAME` with the repo owner. See [Installation](#installation) for Studio setup.
+> Tested on executors via `game:HttpGet`. See [Installation](#installation) for Studio setup.
 
 ---
 
@@ -73,13 +73,13 @@ Run `Ui lib/Example.lua` to spawn the exact reference demo.
 One line, no files needed (single-file bundle, one HTTP request):
 
 ```lua
-local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/YOUR-USERNAME/Celestial-Rivals/main/CelestialUI.lua"))()
+local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/4shrxx-afk/Celestial-Rivals/main/CelestialUI.lua"))()
 ```
 
 Direct-`Init.lua` loadstring also works (it fetches siblings over HTTP automatically):
 
 ```lua
-local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/YOUR-USERNAME/Celestial-Rivals/main/Ui%20lib/Init.lua"))()
+local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/4shrxx-afk/Celestial-Rivals/main/Ui%20lib/Init.lua"))()
 ```
 
 Forks: point the loader at your own repo without editing files:
@@ -120,7 +120,7 @@ local UI = require(path.To.UiLib)
 ## Quick start
 
 ```lua
-local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/YOUR-USERNAME/Celestial-Rivals/main/CelestialUI.lua"))()
+local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/4shrxx-afk/Celestial-Rivals/main/CelestialUI.lua"))()
 
 local Win = UI:CreateWindow({
     Title = "CELESTIAL",      -- white half of the wordmark

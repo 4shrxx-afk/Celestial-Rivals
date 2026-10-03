@@ -83,15 +83,45 @@ local function tryLoadSiblingFile(name)
     return false
 end
 
+-- GitHub fallback: fetch sibling modules over HTTP so a raw Init.lua
+-- loadstring works with zero local files. Forks can repoint the base
+-- without editing files: getgenv().CelestialUI_Repo = "https://raw.githubusercontent.com/YOU/FORK/main/Ui%20lib/"
+local REPO_RAW = "https://raw.githubusercontent.com/4shrxx-afk/Celestial-Rivals/main/Ui%20lib/"
+pcall(function()
+    if typeof(getgenv) == "function" then
+        local base = getgenv().CelestialUI_Repo
+        if typeof(base) == "string" and #base > 0 then
+            if base:sub(-1) ~= "/" then base = base .. "/" end
+            REPO_RAW = base
+        end
+    end
+end)
+
+local function tryLoadHttp(name)
+    local ok, res = pcall(function()
+        return game:HttpGet(REPO_RAW .. name .. ".lua")
+    end)
+    if ok and typeof(res) == "string" and #res > 0 then
+        local fn = (loadstring or load)(res, "@" .. name)
+        if fn then
+            local ok2, mod = pcall(fn)
+            if ok2 then return true, mod end
+        end
+    end
+    return false
+end
+
 local function need(name)
     local s = getScript()
     local ok, res = tryRequireChild(s, name)
     if ok then return res end
     local ok2, res2 = tryLoadSiblingFile(name)
     if ok2 then return res2 end
+    local ok3, res3 = tryLoadHttp(name)
+    if ok3 then return res3 end
     error("[CelestialUI.Init] missing module '" .. name
         .. "'. Studio: add it as a child ModuleScript. Executor: keep "
-        .. name .. ".lua next to Init.lua (or use CelestialUI.lua single-file).")
+        .. name .. ".lua next to Init.lua (or use the single-file CelestialUI.lua).")
 end
 
 -- Load order matters: leaves first, Window last (it needs builders injected)

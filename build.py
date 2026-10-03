@@ -46,7 +46,7 @@ def main() -> None:
         "    CelestialUI.lua — single-file bundle (GENERATED, do not edit).\n"
         "    Built by build.py from Ui lib/*.lua. Edit the modules, then rebuild.\n"
         "    Loadstring:\n"
-        '      local UI = loadstring(game:HttpGet("<repo-raw-url>/CelestialUI.lua"))()\n'
+        '      local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/4shrxx-afk/Celestial-Rivals/main/CelestialUI.lua"))()\n'
         "]]\n",
         "-- Embedded module sources (dependency order, resolved by need()).",
         "local __SRC = {}",
