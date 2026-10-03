@@ -25,12 +25,14 @@
     EDIT ME: add new controls in the Controls table below.
 ]]
 
+-- BUNDLE_HEAD_START (build.py copies this block into the dist bundle)
 local Library = {}
 Library.Flags = {}
 Library._Accent = Color3.fromRGB(148, 150, 255)
 Library._ThemeName = "Dark"
 Library._Scale = 1
 Library._Windows = {}
+-- BUNDLE_HEAD_END
 
 -- Safe `script` access (loadstring has no `script` global)
 local function getScript()

@@ -36,6 +36,15 @@ def main() -> None:
         sys.exit("build failed: TAIL_MARKER not found in Init.lua")
     tail = TAIL_MARKER + init_src.split(TAIL_MARKER, 1)[1]
 
+    # The dist bundle replaces Init's loader infra with embedded sources,
+    # so it must still carry the Library table block (marked in Init.lua).
+    # Without it, the tail's `Library._ThemeData = ...` indexes nil.
+    HEAD_START = "-- BUNDLE_HEAD_START"
+    HEAD_END = "-- BUNDLE_HEAD_END"
+    if HEAD_START not in init_src or HEAD_END not in init_src:
+        sys.exit("build failed: BUNDLE_HEAD markers not found in Init.lua")
+    head = init_src.split(HEAD_START, 1)[1].split(HEAD_END, 1)[0].strip("\n")
+
     needed = sorted(set(re.findall(r'need\("([\w]+)"\)', tail)))
     missing = [n for n in needed if n not in embedded]
     if missing:
@@ -61,6 +70,8 @@ def main() -> None:
         '    assert(fn, "[CelestialUI] load error in " .. tostring(name) .. ": " .. tostring(err))',
         "    return fn()",
         "end",
+        "",
+        head,
         "",
         tail,
     ]

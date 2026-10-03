@@ -2388,6 +2388,14 @@ local function need(name)
     return fn()
 end
 
+ (build.py copies this block into the dist bundle)
+local Library = {}
+Library.Flags = {}
+Library._Accent = Color3.fromRGB(148, 150, 255)
+Library._ThemeName = "Dark"
+Library._Scale = 1
+Library._Windows = {}
+
 -- Load order matters: leaves first, Window last (it needs builders injected)
 local ThemeData = need("Theme")
 local Utils = need("Utils")
