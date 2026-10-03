@@ -95,9 +95,15 @@ function Utils.Pad(parent, l, t, r, b)
     return p
 end
 
+-- One live tween per object: starting a new one cancels the old.
+-- (Kills fighting hover tweens, the main source of slow/smeary UI.)
+local _liveTweens = setmetatable({}, { __mode = "k" })
 function Utils.Tween(obj, props, dur, style, dir)
+    local old = _liveTweens[obj]
+    if old then pcall(function() old:Cancel() end) end
     local info = TweenInfo.new(dur or 0.18, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out)
     local tw = TweenService:Create(obj, info, props)
+    _liveTweens[obj] = tw
     tw:Play()
     return tw
 end

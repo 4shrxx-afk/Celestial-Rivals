@@ -27,6 +27,23 @@ return function(Window, Utils, ThemeData)
     Utils.Hairline(Utils.Stroke(set, Theme.Stroke, 0.92, 1), Theme)
     Utils.Shadow(set, 0.5, 40)
 
+    -- Click-catcher: clicking anywhere outside the modal closes it.
+    local zone = Utils.New("TextButton", {
+        Name = "SettingsCloseZone",
+        Text = "",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Visible = false,
+        ZIndex = 39,
+        AutoButtonColor = false,
+        Parent = Window.Main,
+    })
+    Window._SettingsZone = zone
+    zone.MouseButton1Click:Connect(function()
+        set.Visible = false
+        zone.Visible = false
+    end)
+
     local title = Utils.New("TextLabel", {
         Text = "App settings",
         Font = ThemeData.Fonts.Medium,
@@ -49,7 +66,10 @@ return function(Window, Utils, ThemeData)
         Parent = set,
     })
     x:SetAttribute("IRole", "Dim")
-    x.MouseButton1Click:Connect(function() set.Visible = false end)
+    x.MouseButton1Click:Connect(function()
+        set.Visible = false
+        zone.Visible = false
+    end)
 
     -- segmented Light / Dark / Black
     local seg = Utils.New("Frame", {
@@ -250,7 +270,7 @@ return function(Window, Utils, ThemeData)
 
     local track = Utils.New("Frame", {
         Position = UDim2.new(0, 16, 0, 180),
-        Size = UDim2.new(1, -32, 0, 4),
+        Size = UDim2.new(1, -32, 0, 6),
         BackgroundColor3 = Theme.Track,
         BorderSizePixel = 0,
         ZIndex = 42,
@@ -265,7 +285,7 @@ return function(Window, Utils, ThemeData)
         ZIndex = 43,
         Parent = track,
     })
-    Utils.Corner(fill, 2)
+    Utils.Corner(fill, ThemeData.Radius.Track)
 
     local knob = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),

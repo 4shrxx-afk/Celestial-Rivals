@@ -187,6 +187,20 @@ return function(Window, Utils, ThemeData)
     -- state
     local H, S, V = 0.66, 0.42, 1
     local callback = nil
+    local api = {}
+
+    -- Click-catcher behind the modal: clicking anywhere outside closes it.
+    local zone = Utils.New("TextButton", {
+        Name = "ColorCloseZone",
+        Text = "",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Visible = false,
+        ZIndex = 39,
+        AutoButtonColor = false,
+        Parent = Window.Main,
+    })
+    zone.MouseButton1Click:Connect(function() api.Close() end)
 
     local function currentColor()
         return Color3.fromHSV(H, S, V)
@@ -197,7 +211,9 @@ return function(Window, Utils, ThemeData)
         if wheel.AbsoluteSize.X > 0 then
             local r = (wheel.AbsoluteSize.X / 2) * S
             local ang = H * math.pi * 2
-            dot.Position = UDim2.new(0.5, math.cos(ang) * r, 0.5, -math.sin(ang) * r)
+            -- Inverse of the click math below (atan2): clicking the dot
+            -- returns the same H instead of landing half a wheel off.
+            dot.Position = UDim2.new(0.5, -math.cos(ang) * r, 0.5, math.sin(ang) * r)
         end
         sliders.H.Knob.Position = UDim2.new(H, 0, 0.5, 0)
         sliders.S.Knob.Position = UDim2.new(S, 0, 0.5, 0)
@@ -289,13 +305,11 @@ return function(Window, Utils, ThemeData)
 
     saveBtn.MouseButton1Click:Connect(function()
         local col = currentColor()
-        modal.Visible = false
-        tip.Visible = false
+        api.Close()
         if callback then task.spawn(callback, col) end
         Window:SetAccent(col)
     end)
 
-    local api = {}
     function api.Open(default, cb, anchorPos)
         if default then
             H, S, V = Color3.toHSV(default)
@@ -304,14 +318,20 @@ return function(Window, Utils, ThemeData)
         refresh()
         modal.Position = anchorPos or UDim2.new(0.5, 120, 0.5, 0)
         modal.Visible = true
-        tip.Position = UDim2.new(0, 40, 0, 210)
+        -- Dock the tooltip directly under the picker so they read as one card.
+        tip.AnchorPoint = Vector2.new(0.5, 0)
+        tip.Position = UDim2.new(
+            modal.Position.X.Scale, modal.Position.X.Offset,
+            modal.Position.Y.Scale, modal.Position.Y.Offset + 175)
         tip.Visible = true
+        zone.Visible = true
         modal.Size = UDim2.new(0, 210, 0, 310)
         Utils.Tween(modal, { Size = UDim2.new(0, 228, 0, 330) }, 0.18)
     end
     function api.Close()
         modal.Visible = false
         tip.Visible = false
+        zone.Visible = false
     end
     function api.Refresh() refresh() end
     function api.Get() return currentColor() end

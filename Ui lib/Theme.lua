@@ -79,9 +79,10 @@ Theme.Radius = {
     Row = 8,
     Button = 8,
     Search = 8,
-    Toggle = 7,
+    Toggle = 7, -- legacy checkbox (kept for compat)
+    Switch = 11, -- 22px tall pill switch -> 11px radius
     Modal = 12,
-    Track = 2, -- 4px tall track -> 2px radius
+    Track = 3, -- 6px tall track -> 3px radius
 }
 
 -- Fonts: Gotham* auto-maps to Montserrat on live clients (Gotham removed 2024).

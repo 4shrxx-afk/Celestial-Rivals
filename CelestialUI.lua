@@ -89,9 +89,10 @@ Theme.Radius = {
     Row = 8,
     Button = 8,
     Search = 8,
-    Toggle = 7,
+    Toggle = 7, -- legacy checkbox (kept for compat)
+    Switch = 11, -- 22px tall pill switch -> 11px radius
     Modal = 12,
-    Track = 2, -- 4px tall track -> 2px radius
+    Track = 3, -- 6px tall track -> 3px radius
 }
 
 -- Fonts: Gotham* auto-maps to Montserrat on live clients (Gotham removed 2024).
@@ -212,9 +213,15 @@ function Utils.Pad(parent, l, t, r, b)
     return p
 end
 
+-- One live tween per object: starting a new one cancels the old.
+-- (Kills fighting hover tweens, the main source of slow/smeary UI.)
+local _liveTweens = setmetatable({}, { __mode = "k" })
 function Utils.Tween(obj, props, dur, style, dir)
+    local old = _liveTweens[obj]
+    if old then pcall(function() old:Cancel() end) end
     local info = TweenInfo.new(dur or 0.18, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out)
     local tw = TweenService:Create(obj, info, props)
+    _liveTweens[obj] = tw
     tw:Play()
     return tw
 end
@@ -588,6 +595,23 @@ return function(Window, Utils, ThemeData)
     Utils.Hairline(Utils.Stroke(set, Theme.Stroke, 0.92, 1), Theme)
     Utils.Shadow(set, 0.5, 40)
 
+    -- Click-catcher: clicking anywhere outside the modal closes it.
+    local zone = Utils.New("TextButton", {
+        Name = "SettingsCloseZone",
+        Text = "",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Visible = false,
+        ZIndex = 39,
+        AutoButtonColor = false,
+        Parent = Window.Main,
+    })
+    Window._SettingsZone = zone
+    zone.MouseButton1Click:Connect(function()
+        set.Visible = false
+        zone.Visible = false
+    end)
+
     local title = Utils.New("TextLabel", {
         Text = "App settings",
         Font = ThemeData.Fonts.Medium,
@@ -610,7 +634,10 @@ return function(Window, Utils, ThemeData)
         Parent = set,
     })
     x:SetAttribute("IRole", "Dim")
-    x.MouseButton1Click:Connect(function() set.Visible = false end)
+    x.MouseButton1Click:Connect(function()
+        set.Visible = false
+        zone.Visible = false
+    end)
 
     -- segmented Light / Dark / Black
     local seg = Utils.New("Frame", {
@@ -811,7 +838,7 @@ return function(Window, Utils, ThemeData)
 
     local track = Utils.New("Frame", {
         Position = UDim2.new(0, 16, 0, 180),
-        Size = UDim2.new(1, -32, 0, 4),
+        Size = UDim2.new(1, -32, 0, 6),
         BackgroundColor3 = Theme.Track,
         BorderSizePixel = 0,
         ZIndex = 42,
@@ -826,7 +853,7 @@ return function(Window, Utils, ThemeData)
         ZIndex = 43,
         Parent = track,
     })
-    Utils.Corner(fill, 2)
+    Utils.Corner(fill, ThemeData.Radius.Track)
 
     local knob = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
@@ -1063,6 +1090,20 @@ return function(Window, Utils, ThemeData)
     -- state
     local H, S, V = 0.66, 0.42, 1
     local callback = nil
+    local api = {}
+
+    -- Click-catcher behind the modal: clicking anywhere outside closes it.
+    local zone = Utils.New("TextButton", {
+        Name = "ColorCloseZone",
+        Text = "",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Visible = false,
+        ZIndex = 39,
+        AutoButtonColor = false,
+        Parent = Window.Main,
+    })
+    zone.MouseButton1Click:Connect(function() api.Close() end)
 
     local function currentColor()
         return Color3.fromHSV(H, S, V)
@@ -1073,7 +1114,9 @@ return function(Window, Utils, ThemeData)
         if wheel.AbsoluteSize.X > 0 then
             local r = (wheel.AbsoluteSize.X / 2) * S
             local ang = H * math.pi * 2
-            dot.Position = UDim2.new(0.5, math.cos(ang) * r, 0.5, -math.sin(ang) * r)
+            -- Inverse of the click math below (atan2): clicking the dot
+            -- returns the same H instead of landing half a wheel off.
+            dot.Position = UDim2.new(0.5, -math.cos(ang) * r, 0.5, math.sin(ang) * r)
         end
         sliders.H.Knob.Position = UDim2.new(H, 0, 0.5, 0)
         sliders.S.Knob.Position = UDim2.new(S, 0, 0.5, 0)
@@ -1165,13 +1208,11 @@ return function(Window, Utils, ThemeData)
 
     saveBtn.MouseButton1Click:Connect(function()
         local col = currentColor()
-        modal.Visible = false
-        tip.Visible = false
+        api.Close()
         if callback then task.spawn(callback, col) end
         Window:SetAccent(col)
     end)
 
-    local api = {}
     function api.Open(default, cb, anchorPos)
         if default then
             H, S, V = Color3.toHSV(default)
@@ -1180,14 +1221,20 @@ return function(Window, Utils, ThemeData)
         refresh()
         modal.Position = anchorPos or UDim2.new(0.5, 120, 0.5, 0)
         modal.Visible = true
-        tip.Position = UDim2.new(0, 40, 0, 210)
+        -- Dock the tooltip directly under the picker so they read as one card.
+        tip.AnchorPoint = Vector2.new(0.5, 0)
+        tip.Position = UDim2.new(
+            modal.Position.X.Scale, modal.Position.X.Offset,
+            modal.Position.Y.Scale, modal.Position.Y.Offset + 175)
         tip.Visible = true
+        zone.Visible = true
         modal.Size = UDim2.new(0, 210, 0, 310)
         Utils.Tween(modal, { Size = UDim2.new(0, 228, 0, 330) }, 0.18)
     end
     function api.Close()
         modal.Visible = false
         tip.Visible = false
+        zone.Visible = false
     end
     function api.Refresh() refresh() end
     function api.Get() return currentColor() end
@@ -1270,18 +1317,12 @@ return function(Window, Utils, ThemeData, opts)
         TextColor3 = T.TextDim,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 38, 0, 0),
-        Size = UDim2.new(1, -66, 1, 0),
+        Size = UDim2.new(1, -50, 1, 0),
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = btn,
     })
     lbl:SetAttribute("TRole", "Dim")
-
-    local tabChev = Icons.New("chevron-down", 12, T.TextDark, {
-        AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -10, 0.5, 0),
-        Parent = btn,
-    })
-    tabChev:SetAttribute("IRole", "Dark")
+    -- (No chevron: tabs navigate on click, nothing expands.)
 
     local page = Utils.New("ScrollingFrame", {
         Name = name .. "_Page",
@@ -1467,9 +1508,9 @@ end
 __SRC["Toggle"] = [==[
 --[[
     Celestial Rivals UI — Toggle.lua
-    EDIT ME: toggle box size, check icon, on/off colors.
+    EDIT ME: switch size, knob, on/off colors.
     Usage: Tab:Toggle({ Name = "Penetrate walls", Default = true, More = true, Callback = fn })
-    Reference: 26x26 rounded-7 square, accent when ON, Lucide check in white.
+    Modern pill switch: 40x22 track, sliding 16px knob, accent when ON.
 ]]
 
 -- CreateToggle(Tab, Utils, ThemeData, Library, opts)
@@ -1485,33 +1526,33 @@ return function(Tab, Utils, ThemeData, Library, t)
 
     local OFF = Color3.fromRGB(36, 36, 44)
     local OFF_HOVER = Color3.fromRGB(52, 52, 64)
-    local box = Utils.New("TextButton", {
+    local pill = Utils.New("TextButton", {
         Text = "",
         AnchorPoint = Vector2.new(1, 0.5),
         Position = UDim2.new(1, -12, 0.5, 0),
-        Size = UDim2.new(0, 26, 0, 26),
+        Size = UDim2.new(0, 40, 0, 22),
         BackgroundColor3 = state and Window.Accent or OFF,
         BorderSizePixel = 0,
         AutoButtonColor = false,
         Parent = row,
     })
-    Utils.Corner(box, ThemeData.Radius.Toggle)
-    Utils.Stroke(box, Color3.fromRGB(255, 255, 255), 0.94, 1)
+    Utils.Corner(pill, ThemeData.Radius.Switch)
+    Utils.Stroke(pill, Color3.fromRGB(255, 255, 255), 0.94, 1)
 
-    local check = Icons.New("check", 14, Color3.fromRGB(255, 255, 255), {
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        Visible = state,
-        Parent = box,
+    local knob = Utils.New("Frame", {
+        AnchorPoint = Vector2.new(0, 0.5),
+        Position = UDim2.new(0, state and 21 or 3, 0.5, 0),
+        Size = UDim2.new(0, 16, 0, 16),
+        BackgroundColor3 = Color3.fromRGB(237, 237, 239),
+        BorderSizePixel = 0,
+        Parent = pill,
     })
-    if not state then
-        check.Size = UDim2.new(0, 0, 0, 0) -- pops in with a tween on enable
-    end
+    Utils.Corner(knob, 0, true)
 
     if t.More then
         local dots = Icons.New("ellipsis", 16, Window.Theme.TextDark, {
             AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -46, 0.5, 0),
+            Position = UDim2.new(1, -64, 0.5, 0),
             Parent = row,
         })
         dots:SetAttribute("IRole", "Dark")
@@ -1521,35 +1562,31 @@ return function(Tab, Utils, ThemeData, Library, t)
         state = v
         Library.Flags[rowName] = v
         row:SetAttribute("On", v and true or nil)
-        Utils.Tween(box, { BackgroundColor3 = v and Window.Accent or OFF }, 0.18)
-        Utils.Tween(box, { Size = UDim2.new(0, 26, 0, 26) }, 0.1)
-        if v then
-            check.Visible = true
-            check.Size = UDim2.new(0, 0, 0, 0)
-            Utils.Tween(check, { Size = UDim2.new(0, 14, 0, 14) }, 0.22, Enum.EasingStyle.Back)
-        else
-            check.Visible = false
-        end
+        Utils.Tween(pill, { BackgroundColor3 = v and Window.Accent or OFF }, 0.18)
+        Utils.Tween(knob, {
+            Position = UDim2.new(0, v and 21 or 3, 0.5, 0),
+            Size = UDim2.new(0, 16, 0, 16),
+        }, 0.2)
         if not silent and t.Callback then
             task.spawn(t.Callback, v)
         end
     end
 
-    box.MouseButton1Click:Connect(function() apply(not state) end)
-    box.MouseEnter:Connect(function()
-        if not state then Utils.Tween(box, { BackgroundColor3 = OFF_HOVER }, 0.12) end
+    pill.MouseButton1Click:Connect(function() apply(not state) end)
+    pill.MouseEnter:Connect(function()
+        if not state then Utils.Tween(pill, { BackgroundColor3 = OFF_HOVER }, 0.12) end
     end)
-    box.MouseLeave:Connect(function()
-        if not state then Utils.Tween(box, { BackgroundColor3 = OFF }, 0.12) end
+    pill.MouseLeave:Connect(function()
+        if not state then Utils.Tween(pill, { BackgroundColor3 = OFF }, 0.12) end
     end)
-    box.MouseButton1Down:Connect(function()
-        Utils.Tween(box, { Size = UDim2.new(0, 23, 0, 23) }, 0.08)
+    pill.MouseButton1Down:Connect(function()
+        Utils.Tween(knob, { Size = UDim2.new(0, 14, 0, 14) }, 0.08)
     end)
-    box.MouseButton1Up:Connect(function()
-        Utils.Tween(box, { Size = UDim2.new(0, 26, 0, 26) }, 0.12)
+    pill.MouseButton1Up:Connect(function()
+        Utils.Tween(knob, { Size = UDim2.new(0, 16, 0, 16) }, 0.12)
     end)
     table.insert(Window._AccentUpdaters, function(c)
-        if state then box.BackgroundColor3 = c end
+        if state then pill.BackgroundColor3 = c end
     end)
     if state then row:SetAttribute("On", true) end
 
@@ -1619,7 +1656,7 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
     local track = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0, 1),
         Position = UDim2.new(0, 14, 1, -12),
-        Size = UDim2.new(1, -28, 0, 4),
+        Size = UDim2.new(1, -28, 0, 6),
         BackgroundColor3 = Window.Theme.Track,
         BorderSizePixel = 0,
         Parent = row,
@@ -1637,14 +1674,14 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
     local knob = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new((val - min) / math.max(max - min, 0.001), 0, 0.5, 0),
-        Size = UDim2.new(0, 14, 0, 14),
+        Size = UDim2.new(0, 16, 0, 16),
         BackgroundColor3 = Color3.fromRGB(237, 237, 239),
         BorderSizePixel = 0,
         Parent = track,
     })
     Utils.Corner(knob, 0, true)
     -- Soft accent ring shown on hover/drag (modern slider feel).
-    local ring = Utils.Stroke(knob, Window.Accent, 1, 2)
+    local ring = Utils.Stroke(knob, Window.Accent, 0.55, 2)
     table.insert(Window._AccentUpdaters, function(c)
         fill.BackgroundColor3 = c
         ring.Color = c
@@ -1653,20 +1690,20 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
 
     local dragging = false
     local function paintKnob()
-        local target = dragging and 17 or 14
+        local target = dragging and 19 or 16
         Utils.Tween(knob, { Size = UDim2.new(0, target, 0, target) }, 0.12)
-        ring.Transparency = dragging and 0.25 or 1
+        ring.Transparency = dragging and 0 or 0.55
         valLbl.TextColor3 = dragging and Window.Accent or Window.Theme.TextDim
     end
     knob.MouseEnter:Connect(function()
         if dragging then return end
-        Utils.Tween(knob, { Size = UDim2.new(0, 15, 0, 15) }, 0.1)
-        ring.Transparency = 0.25
+        Utils.Tween(knob, { Size = UDim2.new(0, 18, 0, 18) }, 0.1)
+        ring.Transparency = 0.2
     end)
     knob.MouseLeave:Connect(function()
         if dragging then return end
         Utils.Tween(knob, { Size = UDim2.new(0, 14, 0, 14) }, 0.1)
-        ring.Transparency = 1
+        ring.Transparency = 0.55
     end)
     local function setFromX(x, animate)
         local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
@@ -1761,7 +1798,7 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
     local track = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0, 1),
         Position = UDim2.new(0, 14, 1, -12),
-        Size = UDim2.new(1, -28, 0, 4),
+        Size = UDim2.new(1, -28, 0, 6),
         BackgroundColor3 = Window.Theme.Track,
         BorderSizePixel = 0,
         Parent = row,
@@ -1777,7 +1814,7 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
 
     local kA = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.new(0, 14, 0, 14),
+        Size = UDim2.new(0, 16, 0, 16),
         BackgroundColor3 = Color3.fromRGB(200, 200, 208),
         BorderSizePixel = 0,
         Parent = track,
@@ -1786,7 +1823,7 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
 
     local kB = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.new(0, 14, 0, 14),
+        Size = UDim2.new(0, 16, 0, 16),
         BackgroundColor3 = Color3.fromRGB(237, 237, 239),
         BorderSizePixel = 0,
         Parent = track,
@@ -1797,7 +1834,7 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
 
     local dragWhich = nil
     local function paintRange()
-        local s = dragWhich and 17 or 14
+        local s = dragWhich and 18 or 16
         kA.Size = UDim2.new(0, s, 0, s)
         kB.Size = UDim2.new(0, s, 0, s)
         valLbl.TextColor3 = dragWhich and Window.Accent or Window.Theme.TextDim
@@ -2053,7 +2090,7 @@ return function(Library, deps)
             Position = UDim2.new(0.5, 0.5),
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundColor3 = Color3.fromRGB(10, 8, 20),
-            BackgroundTransparency = 0.35,
+            BackgroundTransparency = 1, -- no dim: the game stays fully visible
             BorderSizePixel = 0,
             Parent = Gui,
         })
@@ -2160,7 +2197,7 @@ return function(Library, deps)
             TextColor3 = T.Text,
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 1, 0),
-            TextXAlignment = Enum.TextXAlignment.Left,
+            TextXAlignment = Enum.TextXAlignment.Center,
             TextTruncate = Enum.TextTruncate.AtEnd,
             RichText = true,
             Parent = Logo,
@@ -2191,10 +2228,20 @@ return function(Library, deps)
             Size = UDim2.new(0, 220, 0, 28),
             Parent = Main,
         })
-        local gear = Icons.Button("settings", 16, T.TextDim, {
-            AnchorPoint = Vector2.new(0, 0.5),
-            Position = UDim2.new(1, -142, 0.5, 0),
+        -- 28px invisible hitbox around the 16px icon (easy to hit).
+        local gearHit = Utils.New("TextButton", {
+            Text = "",
+            BackgroundTransparency = 1,
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, -120, 0.5, 0),
+            Size = UDim2.new(0, 28, 0, 28),
+            AutoButtonColor = false,
             Parent = TopRight,
+        })
+        local gear = Icons.Button("settings", 16, T.TextDim, {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Parent = gearHit,
         })
         gear:SetAttribute("IRole", "Dim")
         local infoIcon = Icons.New("info", 14, T.TextDark, {
@@ -2224,11 +2271,25 @@ return function(Library, deps)
             Parent = TopRight,
         })
         Utils.Corner(Avatar, 0, true)
-        Icons.New("user-round", 16, Color3.fromRGB(40, 40, 45), {
+        local avatarImg = Icons.New("user-round", 16, Color3.fromRGB(40, 40, 45), {
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(0.5, 0, 0.5, 0),
             Parent = Avatar,
         })
+        Utils.Corner(avatarImg, 0, true) -- circular mask for the headshot below
+        -- Real headshot of the person running the script (non-blocking).
+        task.spawn(function()
+            local ok, lp = pcall(function() return Players.LocalPlayer end)
+            if ok and lp then
+                local ok2, content, ready = pcall(function()
+                    return Players:GetUserThumbnailAsync(lp.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+                end)
+                if ok2 and ready and typeof(content) == "string" and #content > 0 then
+                    avatarImg.Image = content
+                    avatarImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+                end
+            end
+        end)
 
         local PageHolder = Utils.New("Frame", {
             Position = UDim2.new(0, 244, 0, 44),
@@ -2414,14 +2475,18 @@ return function(Library, deps)
         local settingsFrame = BuildSettings(Window, Utils, ThemeData)
         Window._Settings = settingsFrame
 
-        gear.MouseButton1Click:Connect(function()
-            settingsFrame.Visible = not settingsFrame.Visible
+        gearHit.MouseButton1Click:Connect(function()
+            local isOpen = not settingsFrame.Visible
+            settingsFrame.Visible = isOpen
+            if Window._SettingsZone then
+                Window._SettingsZone.Visible = isOpen
+            end
         end)
-        gear.MouseEnter:Connect(function()
+        gearHit.MouseEnter:Connect(function()
             gear:SetAttribute("IRole", "Active")
             Utils.Tween(gear, { ImageColor3 = Window.Accent }, 0.15)
         end)
-        gear.MouseLeave:Connect(function()
+        gearHit.MouseLeave:Connect(function()
             gear:SetAttribute("IRole", "Dim")
             Utils.Tween(gear, { ImageColor3 = Window.Theme.TextDim }, 0.15)
         end)

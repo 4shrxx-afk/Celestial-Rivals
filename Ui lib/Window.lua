@@ -63,7 +63,7 @@ return function(Library, deps)
             Position = UDim2.new(0.5, 0.5),
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundColor3 = Color3.fromRGB(10, 8, 20),
-            BackgroundTransparency = 0.35,
+            BackgroundTransparency = 1, -- no dim: the game stays fully visible
             BorderSizePixel = 0,
             Parent = Gui,
         })
@@ -170,7 +170,7 @@ return function(Library, deps)
             TextColor3 = T.Text,
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 1, 0),
-            TextXAlignment = Enum.TextXAlignment.Left,
+            TextXAlignment = Enum.TextXAlignment.Center,
             TextTruncate = Enum.TextTruncate.AtEnd,
             RichText = true,
             Parent = Logo,
@@ -201,10 +201,20 @@ return function(Library, deps)
             Size = UDim2.new(0, 220, 0, 28),
             Parent = Main,
         })
-        local gear = Icons.Button("settings", 16, T.TextDim, {
-            AnchorPoint = Vector2.new(0, 0.5),
-            Position = UDim2.new(1, -142, 0.5, 0),
+        -- 28px invisible hitbox around the 16px icon (easy to hit).
+        local gearHit = Utils.New("TextButton", {
+            Text = "",
+            BackgroundTransparency = 1,
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, -120, 0.5, 0),
+            Size = UDim2.new(0, 28, 0, 28),
+            AutoButtonColor = false,
             Parent = TopRight,
+        })
+        local gear = Icons.Button("settings", 16, T.TextDim, {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Parent = gearHit,
         })
         gear:SetAttribute("IRole", "Dim")
         local infoIcon = Icons.New("info", 14, T.TextDark, {
@@ -234,11 +244,25 @@ return function(Library, deps)
             Parent = TopRight,
         })
         Utils.Corner(Avatar, 0, true)
-        Icons.New("user-round", 16, Color3.fromRGB(40, 40, 45), {
+        local avatarImg = Icons.New("user-round", 16, Color3.fromRGB(40, 40, 45), {
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(0.5, 0, 0.5, 0),
             Parent = Avatar,
         })
+        Utils.Corner(avatarImg, 0, true) -- circular mask for the headshot below
+        -- Real headshot of the person running the script (non-blocking).
+        task.spawn(function()
+            local ok, lp = pcall(function() return Players.LocalPlayer end)
+            if ok and lp then
+                local ok2, content, ready = pcall(function()
+                    return Players:GetUserThumbnailAsync(lp.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+                end)
+                if ok2 and ready and typeof(content) == "string" and #content > 0 then
+                    avatarImg.Image = content
+                    avatarImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
+                end
+            end
+        end)
 
         local PageHolder = Utils.New("Frame", {
             Position = UDim2.new(0, 244, 0, 44),
@@ -424,14 +448,18 @@ return function(Library, deps)
         local settingsFrame = BuildSettings(Window, Utils, ThemeData)
         Window._Settings = settingsFrame
 
-        gear.MouseButton1Click:Connect(function()
-            settingsFrame.Visible = not settingsFrame.Visible
+        gearHit.MouseButton1Click:Connect(function()
+            local isOpen = not settingsFrame.Visible
+            settingsFrame.Visible = isOpen
+            if Window._SettingsZone then
+                Window._SettingsZone.Visible = isOpen
+            end
         end)
-        gear.MouseEnter:Connect(function()
+        gearHit.MouseEnter:Connect(function()
             gear:SetAttribute("IRole", "Active")
             Utils.Tween(gear, { ImageColor3 = Window.Accent }, 0.15)
         end)
-        gear.MouseLeave:Connect(function()
+        gearHit.MouseLeave:Connect(function()
             gear:SetAttribute("IRole", "Dim")
             Utils.Tween(gear, { ImageColor3 = Window.Theme.TextDim }, 0.15)
         end)

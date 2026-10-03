@@ -47,7 +47,7 @@ assert(UI, "Could not load CelestialUI (check BUNDLE_URL / local path)")
 local Win = UI:CreateWindow({
     Title = "CELESTIAL",
     AccentTitle = "RIVALS",
-    User = "Past Owl",
+    -- User + avatar default to whoever runs the script (DisplayName + headshot).
     Theme = "Dark",
     Accent = Color3.fromRGB(148, 150, 255),
 })

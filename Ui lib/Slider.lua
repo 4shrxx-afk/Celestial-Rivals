@@ -55,7 +55,7 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
     local track = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0, 1),
         Position = UDim2.new(0, 14, 1, -12),
-        Size = UDim2.new(1, -28, 0, 4),
+        Size = UDim2.new(1, -28, 0, 6),
         BackgroundColor3 = Window.Theme.Track,
         BorderSizePixel = 0,
         Parent = row,
@@ -73,14 +73,14 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
     local knob = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new((val - min) / math.max(max - min, 0.001), 0, 0.5, 0),
-        Size = UDim2.new(0, 14, 0, 14),
+        Size = UDim2.new(0, 16, 0, 16),
         BackgroundColor3 = Color3.fromRGB(237, 237, 239),
         BorderSizePixel = 0,
         Parent = track,
     })
     Utils.Corner(knob, 0, true)
     -- Soft accent ring shown on hover/drag (modern slider feel).
-    local ring = Utils.Stroke(knob, Window.Accent, 1, 2)
+    local ring = Utils.Stroke(knob, Window.Accent, 0.55, 2)
     table.insert(Window._AccentUpdaters, function(c)
         fill.BackgroundColor3 = c
         ring.Color = c
@@ -89,20 +89,20 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
 
     local dragging = false
     local function paintKnob()
-        local target = dragging and 17 or 14
+        local target = dragging and 19 or 16
         Utils.Tween(knob, { Size = UDim2.new(0, target, 0, target) }, 0.12)
-        ring.Transparency = dragging and 0.25 or 1
+        ring.Transparency = dragging and 0 or 0.55
         valLbl.TextColor3 = dragging and Window.Accent or Window.Theme.TextDim
     end
     knob.MouseEnter:Connect(function()
         if dragging then return end
-        Utils.Tween(knob, { Size = UDim2.new(0, 15, 0, 15) }, 0.1)
-        ring.Transparency = 0.25
+        Utils.Tween(knob, { Size = UDim2.new(0, 18, 0, 18) }, 0.1)
+        ring.Transparency = 0.2
     end)
     knob.MouseLeave:Connect(function()
         if dragging then return end
         Utils.Tween(knob, { Size = UDim2.new(0, 14, 0, 14) }, 0.1)
-        ring.Transparency = 1
+        ring.Transparency = 0.55
     end)
     local function setFromX(x, animate)
         local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
@@ -197,7 +197,7 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
     local track = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0, 1),
         Position = UDim2.new(0, 14, 1, -12),
-        Size = UDim2.new(1, -28, 0, 4),
+        Size = UDim2.new(1, -28, 0, 6),
         BackgroundColor3 = Window.Theme.Track,
         BorderSizePixel = 0,
         Parent = row,
@@ -213,7 +213,7 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
 
     local kA = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.new(0, 14, 0, 14),
+        Size = UDim2.new(0, 16, 0, 16),
         BackgroundColor3 = Color3.fromRGB(200, 200, 208),
         BorderSizePixel = 0,
         Parent = track,
@@ -222,7 +222,7 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
 
     local kB = Utils.New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.new(0, 14, 0, 14),
+        Size = UDim2.new(0, 16, 0, 16),
         BackgroundColor3 = Color3.fromRGB(237, 237, 239),
         BorderSizePixel = 0,
         Parent = track,
@@ -233,7 +233,7 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
 
     local dragWhich = nil
     local function paintRange()
-        local s = dragWhich and 17 or 14
+        local s = dragWhich and 18 or 16
         kA.Size = UDim2.new(0, s, 0, s)
         kB.Size = UDim2.new(0, s, 0, s)
         valLbl.TextColor3 = dragWhich and Window.Accent or Window.Theme.TextDim

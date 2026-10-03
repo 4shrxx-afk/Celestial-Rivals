@@ -68,18 +68,12 @@ return function(Window, Utils, ThemeData, opts)
         TextColor3 = T.TextDim,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 38, 0, 0),
-        Size = UDim2.new(1, -66, 1, 0),
+        Size = UDim2.new(1, -50, 1, 0),
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = btn,
     })
     lbl:SetAttribute("TRole", "Dim")
-
-    local tabChev = Icons.New("chevron-down", 12, T.TextDark, {
-        AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -10, 0.5, 0),
-        Parent = btn,
-    })
-    tabChev:SetAttribute("IRole", "Dark")
+    -- (No chevron: tabs navigate on click, nothing expands.)
 
     local page = Utils.New("ScrollingFrame", {
         Name = name .. "_Page",
