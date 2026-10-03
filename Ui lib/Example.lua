@@ -1,4 +1,4 @@
-local Lib = require(script.Parent:WaitForChild("Main"))
+local Lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/4shrxx-afk/Celestial-Rivals/main/Evenesce.lua"))()
 
 local Win = Lib.CreateWindow({
 	Title = "Evenesce",

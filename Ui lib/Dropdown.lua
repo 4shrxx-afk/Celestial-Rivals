@@ -64,7 +64,12 @@ function Dropdown.Create(parent, opts, ctx)
 	local function close()
 		open = false
 		chev.Image = Icons.Get("chevron-down")
-		if listFrame then listFrame:Destroy() listFrame = nil end
+		if listFrame then
+			if ctx and ctx.UntrackPopup then
+				ctx.UntrackPopup(listFrame)
+			end
+			listFrame:Destroy() listFrame = nil
+		end
 	end
 
 	local function buildList()
@@ -124,6 +129,9 @@ function Dropdown.Create(parent, opts, ctx)
 				close()
 				pcall(cb, opt)
 			end)
+		end
+		if ctx and ctx.TrackPopup then
+			ctx.TrackPopup(listFrame, close, btn)
 		end
 	end
 

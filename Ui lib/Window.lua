@@ -39,6 +39,53 @@ function Window.Create(opts)
 	function ctx.TrackElement(name, api, kind)
 		table.insert(ctx.all, { Name = name or "", Api = api, Kind = kind or "" })
 	end
+	local trackedPopups = {}
+	local function insideGui(g, p)
+		local a = g.AbsolutePosition
+		local s = g.AbsoluteSize
+		return p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y
+	end
+	function ctx.TrackPopup(frame, closeFn, opener)
+		for i = #trackedPopups, 1, -1 do
+			local t = trackedPopups[i]
+			table.remove(trackedPopups, i)
+			if t.frame ~= frame and t.frame and t.frame.Parent then
+				pcall(t.close)
+			end
+		end
+		table.insert(trackedPopups, { frame = frame, close = closeFn, opener = opener })
+	end
+	function ctx.UntrackPopup(frame)
+		for i = #trackedPopups, 1, -1 do
+			local t = trackedPopups[i]
+			if t.frame == frame or not t.frame or not t.frame.Parent then
+				table.remove(trackedPopups, i)
+			end
+		end
+	end
+	UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+			return
+		end
+		local p = input.Position
+		for i = #trackedPopups, 1, -1 do
+			local t = trackedPopups[i]
+			if not t.frame or not t.frame.Parent then
+				table.remove(trackedPopups, i)
+			else
+				local okIn, inPop = pcall(insideGui, t.frame, p)
+				local inOp = false
+				if t.opener and t.opener.Parent then
+					local okOp, rOp = pcall(insideGui, t.opener, p)
+					inOp = okOp and rOp
+				end
+				if (not okIn or not inPop) and not inOp then
+					table.remove(trackedPopups, i)
+					pcall(t.close)
+				end
+			end
+		end
+	end)
 
 	local gui = Util.New("ScreenGui", {
 		Name = "EvenesceGui",
@@ -253,7 +300,7 @@ function Window.Create(opts)
 	local currentTab
 
 	local function addDivider(card)
-		Util.New("Frame", {
+		return Util.New("Frame", {
 			BackgroundColor3 = Theme.Divider,
 			BackgroundTransparency = 0.4,
 			Size = UDim2.new(1, -28, 0, 1),
@@ -653,19 +700,21 @@ function Window.Create(opts)
 			Util.Padding(card, 4, 0, 4, 0)
 
 			local sec = {}
-			local order = 0
-			local function bump()
-				order = order + 1
-				return order
-			end
-			local function sep()
-				addDivider(card)
+			local n = 0
+			local function beginRow(o)
+				o = o or {}
+				if n > 0 then
+					local d = addDivider(card)
+					d.LayoutOrder = n * 2 + 1
+				end
+				n = n + 1
+				o.Order = n * 2
+				return o
 			end
 
 			function sec.AddToggle(o)
-				o.Order = bump()
+				o = beginRow(o)
 				local api = ToggleMod.Create(card, o, ctx)
-				sep()
 				ctx.TrackElement(o.Name, api, "Toggle")
 				local chevBtn = Util.New("TextButton", {
 					AnchorPoint = Vector2.new(1, 0.5),
@@ -676,21 +725,37 @@ function Window.Create(opts)
 					ZIndex = 2,
 				}, api.Row)
 				chevBtn.MouseButton1Click:Connect(function()
+					if api._kp and api._kp.Frame and api._kp.Frame.Parent then
+						ctx.UntrackPopup(api._kp.Frame)
+						api._kp.Close()
+						api._kp = nil
+						return
+					end
 					local mPos = UserInputService:GetMouseLocation()
-					KeybindMod.Popup(popups, {
+					local kp = KeybindMod.Popup(popups, {
 						Key = "Mouse 5",
 						Mode = "Toggle",
 						Position = UDim2.new(0, mPos.X, 0, mPos.Y),
 						Callback = function() end,
 					})
+					api._kp = kp
+					local f = kp.Frame
+					ctx.TrackPopup(f, function()
+						ctx.UntrackPopup(f)
+						if api._kp and api._kp.Frame == f then
+							api._kp = nil
+						end
+						kp.Close()
+					end, chevBtn)
 				end)
 				return api
 			end
 			function sec.AddButton(o)
-				o.Order = bump()
+				o = beginRow(o)
 				local wrap = Util.New("Frame", {
 					BackgroundTransparency = 1,
 					Size = UDim2.new(1, 0, 0, (o.Height or 38) + 12),
+					LayoutOrder = o.Order,
 				}, card)
 				Util.Padding(wrap, 6, 14, 6, 14)
 				local bWrap = Util.New("Frame", {
@@ -702,37 +767,41 @@ function Window.Create(opts)
 				return api
 			end
 			function sec.AddSlider(o)
-				o.Order = bump()
+				o = beginRow(o)
 				local api = SliderMod.Create(card, o, ctx)
-				sep()
 				ctx.TrackElement(o.Name, api, "Slider")
 				return api
 			end
 			function sec.AddDropdown(o)
-				o.Order = bump()
+				o = beginRow(o)
 				local wrap = Util.New("Frame", {
 					BackgroundTransparency = 1,
 					Size = UDim2.new(1, 0, 0, 68),
+					LayoutOrder = o.Order,
 				}, card)
 				local api = DropdownMod.Create(wrap, o, ctx)
 				ctx.TrackElement(o.Name or o.Title, api, "Dropdown")
 				return api
 			end
 			function sec.AddColorpicker(o)
-				o.Order = bump()
+				o = beginRow(o)
 				o.Callback = o.Callback or function(c) ctx.SetAccent(c) end
 				local api = ColorMod.Inline(card, o, ctx)
 				ctx.TrackElement(o.Name, api, "Color")
 				return api
 			end
 			function sec.AddCoords(o)
-				return InputMod.Coords(card, o or {}, ctx)
+				o = beginRow(o or {})
+				local api = InputMod.Coords(card, o, ctx)
+				api.Instance.LayoutOrder = o.Order
+				return api
 			end
 			function sec.AddInput(o)
-				o.Order = bump()
+				o = beginRow(o)
 				local wrap = Util.New("Frame", {
 					BackgroundTransparency = 1,
 					Size = UDim2.new(1, 0, 0, 48),
+					LayoutOrder = o.Order,
 				}, card)
 				Util.Padding(wrap, 6, 14, 6, 14)
 				local inner = Util.New("Frame", {
@@ -744,10 +813,13 @@ function Window.Create(opts)
 				return api
 			end
 			function sec.AddLabel(o)
+				local txt = (type(o) == "string" and o) or ((type(o) == "table" and o.Text) or "Label")
+				local ord = beginRow({})
 				local t = Util.New("TextLabel", {
 					BackgroundTransparency = 1,
 					Size = UDim2.new(1, 0, 0, 22),
-					Text = (type(o) == "string" and o) or o.Text or "Label",
+					LayoutOrder = ord.Order,
+					Text = txt,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					TextSize = 13,
 					Font = Theme.FontReg,
@@ -777,9 +849,15 @@ function Window.Create(opts)
 
 	local presetFrame
 	local function closePreset()
-		if presetFrame then presetFrame:Destroy() presetFrame = nil end
+		if presetFrame then
+			ctx.UntrackPopup(presetFrame)
+			presetFrame:Destroy() presetFrame = nil
+		end
 		local cf = popups:FindFirstChild("CreatePopup")
-		if cf then cf:Destroy() end
+		if cf then
+			ctx.UntrackPopup(cf)
+			cf:Destroy()
+		end
 	end
 
 	cfgBtn.MouseButton1Click:Connect(function()
@@ -879,10 +957,14 @@ function Window.Create(opts)
 			dIco.Position = UDim2.new(1, -10, 0.5, 0)
 		end
 		Util.List(presetFrame, Enum.FillDirection.Vertical, 6)
+		ctx.TrackPopup(presetFrame, closePreset, cfgBtn)
 
 		plus.MouseButton1Click:Connect(function()
 			local cp = popups:FindFirstChild("CreatePopup")
-			if cp then cp:Destroy() return end
+			if cp then
+				ctx.UntrackPopup(cp)
+				cp:Destroy() return
+			end
 			local c2 = Util.New("Frame", {
 				Name = "CreatePopup",
 				Size = UDim2.new(0, 260, 0, 130),
@@ -896,6 +978,12 @@ function Window.Create(opts)
 			Util.List(c2, Enum.FillDirection.Vertical, 8)
 			InputMod.Textbox(c2, { Placeholder = "Create a new", Icon = "plus-circle" })
 			ButtonMod.Create(c2, { Name = "Create", Accent = true })
+			ctx.TrackPopup(c2, function()
+				ctx.UntrackPopup(c2)
+				if c2 and c2.Parent then
+					c2:Destroy()
+				end
+			end, plus)
 		end)
 	end)
 
@@ -944,9 +1032,14 @@ function Window.Create(opts)
 		for _, e in ipairs(ctx.all) do
 			if string.find(string.lower(e.Name), q, 1, true) then
 				found = found + 1
+				if found > 1 then
+					local sd = addDivider(card)
+					sd.LayoutOrder = found * 2 - 1
+				end
 				local r = Util.New("Frame", {
 					BackgroundTransparency = 1,
 					Size = UDim2.new(1, 0, 0, 48),
+					LayoutOrder = found * 2,
 				}, card)
 				local st = false
 				if e.Api and e.Api.Get then
@@ -978,8 +1071,8 @@ function Window.Create(opts)
 				local chv = Icons.Make(r, "chevron-right", 18, Theme.TextMute)
 				chv.AnchorPoint = Vector2.new(1, 0.5)
 				chv.Position = UDim2.new(1, -12, 0.5, 0)
-				if found < 20 then
-					addDivider(card)
+				if found >= 20 then
+					break
 				end
 			end
 		end
