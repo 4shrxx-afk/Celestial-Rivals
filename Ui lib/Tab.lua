@@ -100,12 +100,14 @@ return function(Window, Utils, ThemeData, opts)
     })
     Utils.Pad(page, 2, 2, 6, 10)
 
+    -- NOTE: field names must not collide with Tab methods below
+    -- (Tab:Button() and Tab:Label() would overwrite same-named fields).
     local Tab = {
         Name = name,
-        Button = btn,
+        Btn = btn,
         Page = page,
         Indicator = indicator,
-        Label = lbl,
+        NameLabel = lbl,
         Icon = tabIcon,
         Active = false,
         _Order = 0,
@@ -117,8 +119,8 @@ return function(Window, Utils, ThemeData, opts)
             t.Active = false
             t.Page.Visible = false
             t.Indicator.Visible = false
-            t.Button.BackgroundTransparency = 1
-            t.Label.TextColor3 = Window.Theme.TextDim
+            t.Btn.BackgroundTransparency = 1
+            t.NameLabel.TextColor3 = Window.Theme.TextDim
             if t.Icon then
                 t.Icon.ImageColor3 = Window.Theme.TextDim
                 t.Icon:SetAttribute("IRole", "Dim")

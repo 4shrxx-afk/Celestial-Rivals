@@ -102,10 +102,15 @@ return function(Library, deps)
         local function FitScreen()
             local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
             local s = math.clamp(math.min(vp.X / 1000, vp.Y / 700), 0.65, 1.1)
+            -- Re-assert centering on every fit (cheap, idempotent): a centered
+            -- AnchorPoint + scale Position keeps Main dead-center on any viewport.
+            Main.AnchorPoint = Vector2.new(0.5, 0.5)
+            Main.Position = UDim2.fromScale(0.5, 0.5)
             Main.Size = UDim2.fromOffset(winSize.X.Offset, winSize.Y.Offset)
             Scale.Scale = s * (Library._Scale or 1)
         end
         pcall(FitScreen)
+        task.defer(function() pcall(FitScreen) end) -- re-center once layout settles
         if workspace.CurrentCamera then
             workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(FitScreen)
         end
@@ -291,7 +296,7 @@ return function(Library, deps)
             Library._Accent = color
             L2.TextColor3 = color
             for _, tab in pairs(self.Tabs) do
-                if tab.Button and tab.Active then
+                if tab.Btn and tab.Active then
                     tab.Indicator.BackgroundColor3 = color
                 end
             end
