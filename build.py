@@ -59,20 +59,20 @@ def _strip_lua(src: str) -> str:
     return "".join(out)
 
 
-def check_structure(bundle: str) -> None:
+def check_structure(src: str, label: str, tokens: tuple = ()) -> None:
     """Fail loudly on structural breakage (broken bundles never ship)."""
-    code = _strip_lua(bundle)
+    code = _strip_lua(src)
     for a, b in (("(", ")"), ("{", "}"), ("[", "]")):
         if code.count(a) != code.count(b):
-            sys.exit(f"build failed: unbalanced {a}{b} ({code.count(a)} vs {code.count(b)})")
+            sys.exit(f"build failed [{label}]: unbalanced {a}{b} ({code.count(a)} vs {code.count(b)})")
     funcs = len(re.findall(r"\bfunction\b", code))
     ends = len(re.findall(r"\bend\b", code))
     if ends < funcs:
-        sys.exit(f"build failed: {ends} ends for {funcs} functions")
-    for token in ("local Library", "return Library", "local function need"):
+        sys.exit(f"build failed [{label}]: {ends} ends for {funcs} functions")
+    for token in tokens:
         if token not in code:
-            sys.exit(f"build failed: bundle missing {token!r}")
-    print(f"structure : delimiters balanced, {ends} ends / {funcs} functions")
+            sys.exit(f"build failed [{label}]: missing {token!r}")
+    print(f"structure [{label}]: delimiters balanced, {ends} ends / {funcs} functions")
 
 
 def main() -> None:
@@ -140,7 +140,9 @@ def main() -> None:
         tail,
     ]
     bundle = "\n".join(parts)
-    check_structure(bundle)
+    for name, src in embedded.items():
+        check_structure(src, f"module {name}")
+    check_structure(bundle, "bundle", ("local Library", "return Library", "local function need"))
 
     out_dist = SRC / "dist" / "CelestialUI.lua"
     out_root = ROOT / "CelestialUI.lua"
