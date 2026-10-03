@@ -69,17 +69,29 @@ local function customRequire(inst)
 	if not file then
 		error("unknown module " .. tostring(name), 2)
 	end
-	local src = game:HttpGet(BASE .. file)
 	local fn, err = loadstring(src, name)
 	if not fn then
-		error(name .. " compile: " .. tostring(err), 2)
+		local ok, res = pcall(function()
+			return load(src, name, "t", nil)
+		end)
+		if not ok then
+			error(name .. " compile: " .. tostring(err), 2)
+		end
+		fn = res
 	end
 	cache[name] = true
 	local fake = makeScript(name)
-	local baseEnv = (getfenv and getfenv() or _G)
+	local baseEnv = (_G.getfenv and _G.getfenv() or _G)
 	local env = setmetatable({ script = fake, require = customRequire }, { __index = baseEnv })
-	if setfenv then
-		setfenv(fn, env)
+	if _G.setfenv then
+		_G.setfenv(fn, env)
+	else
+		local ok, withEnv = pcall(function()
+			return load(src, name, "t", env)
+		end)
+		if ok and withEnv then
+			fn = withEnv
+		end
 	end
 	local res = fn()
 	cache[name] = res
