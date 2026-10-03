@@ -69,6 +69,7 @@ local function customRequire(inst)
 	if not file then
 		error("unknown module " .. tostring(name), 2)
 	end
+	local src = game:HttpGet(BASE .. file)
 	local fn, err = loadstring(src, name)
 	if not fn then
 		local ok, res = pcall(function()
