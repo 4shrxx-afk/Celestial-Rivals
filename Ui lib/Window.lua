@@ -239,14 +239,14 @@ function Window.Create(opts)
 		AutoButtonColor = false,
 	}, top)
 	Util.Corner(cfgBtn, 10)
-	local cfgIco = Icons.Make(cfgBtn, "box", 17, Theme.TextDim)
+	local cfgIco = Icons.Make(cfgBtn, "layers", 17, Theme.TextDim)
 	cfgIco.Position = UDim2.new(0, 12, 0.5, 0)
 	cfgIco.AnchorPoint = Vector2.new(0, 0.5)
 	local cfgLbl = Util.New("TextLabel", {
 		BackgroundTransparency = 1,
 		Position = UDim2.new(0, 40, 0, 0),
 		Size = UDim2.new(1, -70, 1, 0),
-		Text = "Player",
+		Text = "Config",
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextSize = 14,
 		Font = Theme.FontReg,
