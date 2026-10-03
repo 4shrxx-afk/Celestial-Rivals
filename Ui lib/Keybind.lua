@@ -59,26 +59,34 @@ function Keybind.Popup(layer, opts)
 	end)
 
 	game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
-		if listening then
-			if input.UserInputType == Enum.UserInputType.MouseButton1
-				or input.UserInputType == Enum.UserInputType.MouseButton2
-				or input.UserInputType == Enum.UserInputType.MouseButton3 then
+		if not listening then
+			return
+		end
+		local t = tostring(input.UserInputType)
+		if t == "Enum.UserInputType.MouseButton1"
+			or t == "Enum.UserInputType.MouseButton2"
+			or t == "Enum.UserInputType.MouseButton3" then
+			return
+		end
+		local name
+		if t == "Enum.UserInputType.Keyboard" then
+			name = tostring(input.KeyCode):gsub("Enum%.KeyCode%.", "")
+			if name == "Unknown" or name == "" then
 				return
 			end
-			local name = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
-			if input.UserInputType == Enum.UserInputType.MouseButton4 then name = "Mouse4"
-			elseif input.UserInputType == Enum.UserInputType.MouseButton5 then name = "Mouse5" end
-			if input.KeyCode ~= Enum.KeyCode.Unknown then
-				currentKey = name
-			elseif name:find("Mouse") then
-				currentKey = name
+		else
+			local mb = string.match(t, "MouseButton(%d+)")
+			if mb then
+				name = "Mouse" .. mb
+			else
+				return
 			end
-			if currentKey == "" then currentKey = "Mouse 5" end
-			keyLbl.Text = currentKey
-			keyLbl.TextColor3 = Theme.Text
-			listening = false
-			pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow })
 		end
+		currentKey = name
+		keyLbl.Text = currentKey
+		keyLbl.TextColor3 = Theme.Text
+		listening = false
+		pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow })
 	end)
 
 	local modeRow = Util.New("Frame", {

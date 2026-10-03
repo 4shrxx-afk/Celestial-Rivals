@@ -2,7 +2,6 @@ local Lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/4shrxx-af
 
 local Win = Lib.CreateWindow({
 	Title = "Evenesce",
-	User = "Past Owl",
 	Till = "1 Jan 2025",
 })
 

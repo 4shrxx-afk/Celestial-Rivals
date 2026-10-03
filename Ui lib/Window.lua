@@ -16,8 +16,18 @@ local Window = {}
 function Window.Create(opts)
 	opts = opts or {}
 	local title = opts.Title or "Evenesce"
-	local user = opts.User or "Past Owl"
+	local player = Players.LocalPlayer
+	local user = opts.User or (player and player.DisplayName) or "Past Owl"
 	local till = opts.Till or "1 Jan 2025"
+	local avatarImage
+	pcall(function()
+		if player then
+			local img, ready = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+			if ready then
+				avatarImage = img
+			end
+		end
+	end)
 
 	local ctx = {
 		accentCbs = {},
@@ -63,6 +73,66 @@ function Window.Create(opts)
 			end
 		end
 	end
+	local binds = {}
+	local function keyNameOf(input)
+		local t = tostring(input.UserInputType)
+		if t == "Enum.UserInputType.Keyboard" then
+			local k = tostring(input.KeyCode):gsub("Enum%.KeyCode%.", "")
+			if k == "Unknown" or k == "" then
+				return nil
+			end
+			return k
+		end
+		local mb = string.match(t, "MouseButton(%d+)")
+		if mb then
+			return "Mouse" .. mb
+		end
+		return nil
+	end
+	local function normKey(k)
+		return (string.gsub(string.lower(tostring(k or "")), "%s+", ""))
+	end
+	function ctx.SetBind(api, data)
+		for i = #binds, 1, -1 do
+			if binds[i].api == api then
+				table.remove(binds, i)
+			end
+		end
+		if data and data.Key then
+			table.insert(binds, { api = api, key = normKey(data.Key), mode = data.Mode or "Toggle" })
+		end
+	end
+	UserInputService.InputBegan:Connect(function(input, gpe)
+		if gpe then
+			return
+		end
+		local k = keyNameOf(input)
+		if not k then
+			return
+		end
+		k = normKey(k)
+		for _, b in ipairs(binds) do
+			if b.key == k and b.api and b.api.Get and b.api.Set then
+				if b.mode == "Hold" then
+					b.api.Set(true)
+				else
+					b.api.Set(not b.api.Get())
+				end
+			end
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		local k = keyNameOf(input)
+		if not k then
+			return
+		end
+		k = normKey(k)
+		for _, b in ipairs(binds) do
+			if b.key == k and b.mode == "Hold" and b.api and b.api.Set then
+				b.api.Set(false)
+			end
+		end
+	end)
 	UserInputService.InputBegan:Connect(function(input)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
 			return
@@ -124,7 +194,7 @@ function Window.Create(opts)
 		Name = "Window",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0.5, 0, 0.5, 0),
-		Size = UDim2.new(0, 980, 0, 600),
+		Size = opts.Size or UDim2.new(0, 860, 0, 520),
 		BackgroundColor3 = Theme.Bg,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
@@ -299,15 +369,6 @@ function Window.Create(opts)
 	local pages = {}
 	local currentTab
 
-	local function addDivider(card)
-		return Util.New("Frame", {
-			BackgroundColor3 = Theme.Divider,
-			BackgroundTransparency = 0.4,
-			Size = UDim2.new(1, -28, 0, 1),
-			Position = UDim2.new(0, 14, 0, 0),
-		}, card)
-	end
-
 	local winApi = {}
 
 	function winApi.SetAccent(c)
@@ -465,11 +526,22 @@ function Window.Create(opts)
 			Size = UDim2.new(0, 44, 0, 44),
 			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 			BorderSizePixel = 0,
+			ClipsDescendants = true,
 		}, prof)
 		Util.Corner(av, 22)
-		local avIco = Icons.Make(av, "user", 26, Color3.fromRGB(10, 10, 14))
-		avIco.AnchorPoint = Vector2.new(0.5, 0.5)
-		avIco.Position = UDim2.new(0.5, 0, 0.5, 0)
+		if avatarImage then
+			local avImg = Util.New("ImageLabel", {
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+				Image = avatarImage,
+				BorderSizePixel = 0,
+			}, av)
+			Util.Corner(avImg, 22)
+		else
+			local avIco = Icons.Make(av, "user", 26, Color3.fromRGB(10, 10, 14))
+			avIco.AnchorPoint = Vector2.new(0.5, 0.5)
+			avIco.Position = UDim2.new(0.5, 0, 0.5, 0)
+		end
 		Util.New("TextLabel", {
 			BackgroundTransparency = 1,
 			Position = UDim2.new(0, 52, 0, 2),
@@ -703,10 +775,6 @@ function Window.Create(opts)
 			local n = 0
 			local function beginRow(o)
 				o = o or {}
-				if n > 0 then
-					local d = addDivider(card)
-					d.LayoutOrder = n * 2 + 1
-				end
 				n = n + 1
 				o.Order = n * 2
 				return o
@@ -732,11 +800,17 @@ function Window.Create(opts)
 						return
 					end
 					local mPos = UserInputService:GetMouseLocation()
+					local cur = api._bind or {}
 					local kp = KeybindMod.Popup(popups, {
-						Key = "Mouse 5",
-						Mode = "Toggle",
+						Key = cur.Key or "Mouse5",
+						Mode = cur.Mode or "Toggle",
+						Value = cur.Value,
+						Show = cur.Show,
 						Position = UDim2.new(0, mPos.X, 0, mPos.Y),
-						Callback = function() end,
+						Callback = function(data)
+							api._bind = data
+							ctx.SetBind(api, data)
+						end,
 					})
 					api._kp = kp
 					local f = kp.Frame
@@ -1032,14 +1106,10 @@ function Window.Create(opts)
 		for _, e in ipairs(ctx.all) do
 			if string.find(string.lower(e.Name), q, 1, true) then
 				found = found + 1
-				if found > 1 then
-					local sd = addDivider(card)
-					sd.LayoutOrder = found * 2 - 1
-				end
 				local r = Util.New("Frame", {
 					BackgroundTransparency = 1,
 					Size = UDim2.new(1, 0, 0, 48),
-					LayoutOrder = found * 2,
+					LayoutOrder = found,
 				}, card)
 				local st = false
 				if e.Api and e.Api.Get then
