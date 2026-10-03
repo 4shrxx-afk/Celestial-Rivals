@@ -2,25 +2,47 @@
     Celestial Rivals UI — Example.lua
     Recreates the reference screenshot: Aimbot/Triggerbot/... sidebar,
     ACCURACY section, Recoil control, sliders, toggles, color picker.
-    Run after loading the lib:
-
-      Studio:
-        local UI = require(script.Parent.Init)
-        (paste the demo below)
-      Executor:
-        local UI = loadstring(readfile("Celestial Scripts/Celestial Rivals/Ui lib/Init.lua"))()
+    The demo loads the lib itself (see below): GitHub loadstring by
+    default, flip USE_LOCAL to test unpushed edits. Studio: place this
+    file next to Init so the require() fallback hits.
 ]]
 
--- local UI = require(script.Parent.Init) -- Studio
--- local UI = loadstring(readfile("Celestial Scripts/Celestial Rivals/Ui lib/Init.lua"))() -- executor
+-- How the lib is loaded (pick one):
+--   false = GitHub bundle via loadstring (latest PUSHED version, easiest for testing)
+--   true  = local modules (use this to test UNPUSHED edits without pushing)
+local USE_LOCAL = false
+
+local BUNDLE_URL = "https://raw.githubusercontent.com/4shrxx-afk/Celestial-Rivals/main/CelestialUI.lua"
+local LOCAL_INIT = "Celestial Scripts/Celestial Rivals/Ui lib/Init.lua"
 
 local UI = nil
-pcall(function() UI = require(script.Parent.Init) end)
-if not UI and typeof(readfile) == "function" then
-    local ok, src = pcall(readfile, "Celestial Scripts/Celestial Rivals/Ui lib/Init.lua")
-    if ok then UI = loadstring(src, "@Init")() end
+if not USE_LOCAL then
+    -- Primary: loadstring from GitHub (single file, one HTTP request)
+    local ok, res = pcall(function()
+        return loadstring(game:HttpGet(BUNDLE_URL))()
+    end)
+    if ok and res then
+        UI = res
+    else
+        warn("[Example] loadstring failed, trying local fallbacks:", res)
+    end
 end
-assert(UI, "Load Init.lua first")
+if not UI then
+    -- Fallback 1: Studio ModuleScript (Example placed next to Init)
+    pcall(function() UI = require(script.Parent.Init) end)
+end
+if not UI and typeof(readfile) == "function" then
+    -- Fallback 2: local Init.lua through the executor filesystem
+    local ok, src = pcall(readfile, LOCAL_INIT)
+    if ok and src then
+        local fn = loadstring(src, "@Init")
+        if fn then
+            local ok2, res2 = pcall(fn)
+            if ok2 then UI = res2 end
+        end
+    end
+end
+assert(UI, "Could not load CelestialUI (check BUNDLE_URL / local path)")
 
 local Win = UI:CreateWindow({
     Title = "CELESTIAL",
