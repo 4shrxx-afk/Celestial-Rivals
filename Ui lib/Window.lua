@@ -1,520 +1,1016 @@
---[[
-    Celestial Rivals UI — Window.lua
-    EDIT ME: window size, sidebar width, topbar, backdrop glow.
-    Shell only: ScreenGui + backdrop + Main + Sidebar + search + pages.
-    Tabs/controls are injected via deps (see Init.lua) to avoid circular requires.
-    deps = {
-      ThemeData, Utils, Config,
-      Icons (Icons.lua module),
-      BuildSettings (fn(Window, Utils, ThemeData) -> Frame),
-      BuildColorPicker (fn(Window, Utils, ThemeData) -> api),
-      CreateTab (fn(Window, Utils, ThemeData, opts) -> Tab),
-      Controls = { Toggle, SliderModule, Dropdown, } -- attached to each Tab
-    }
-]]
-
+local Theme = require(script.Parent:WaitForChild("Theme"))
+local Util = require(script.Parent:WaitForChild("Util"))
+local Icons = require(script.Parent:WaitForChild("Icons"))
+local ToggleMod = require(script.Parent:WaitForChild("Toggle"))
+local ButtonMod = require(script.Parent:WaitForChild("Button"))
+local SliderMod = require(script.Parent:WaitForChild("Slider"))
+local DropdownMod = require(script.Parent:WaitForChild("Dropdown"))
+local InputMod = require(script.Parent:WaitForChild("Input"))
+local ColorMod = require(script.Parent:WaitForChild("Colorpicker"))
+local KeybindMod = require(script.Parent:WaitForChild("Keybind"))
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 
-return function(Library, deps)
-    local ThemeData = deps.ThemeData
-    local Utils = deps.Utils
-    local Icons = deps.Icons
-    assert(Icons, "[CelestialUI.Window] missing deps.Icons (add Icons.lua, see Init.lua)")
-    local CreateTab = deps.CreateTab
-    local Controls = deps.Controls
-    local BuildSettings = deps.BuildSettings
-    local BuildColorPicker = deps.BuildColorPicker
+local Window = {}
 
-    local function CreateWindow(opts)
-        opts = opts or {}
-        local ThemeDefs = ThemeData.Themes
-        local title1 = opts.Title or "CELESTIAL"
-        local title2 = opts.AccentTitle or "RIVALS"
-        local username = opts.User or (Players.LocalPlayer and Players.LocalPlayer.DisplayName) or "Player"
-        local themeName = opts.Theme or Library._ThemeName or ThemeData.Defaults.ThemeName
-        local accent = opts.Accent or Library._Accent or ThemeData.Defaults.Accent
-        local winSize = opts.Size or ThemeData.Defaults.Size
-        local T = ThemeDefs[themeName] or ThemeDefs.Dark
-        Library._Accent = accent
+function Window.Create(opts)
+	opts = opts or {}
+	local title = opts.Title or "Evenesce"
+	local user = opts.User or "Past Owl"
+	local till = opts.Till or "1 Jan 2025"
 
-        local rootParent = Utils.GetParent()
-        pcall(function()
-            local old = rootParent:FindFirstChild("CelestialRivals")
-            if old then old:Destroy() end
-        end)
+	local ctx = {
+		accentCbs = {},
+		all = {},
+		tabs = {},
+	}
+	function ctx.BindAccent(cb)
+		table.insert(ctx.accentCbs, cb)
+	end
+	function ctx.SetAccent(c)
+		Theme.Accent = c
+		for _, cb in ipairs(ctx.accentCbs) do
+			pcall(cb, c)
+		end
+	end
+	function ctx.OnToggleCreated(api, o)
+		table.insert(ctx.all, { Name = o.Name or "", Api = api, Kind = "Toggle", Opts = o })
+	end
+	function ctx.TrackElement(name, api, kind)
+		table.insert(ctx.all, { Name = name or "", Api = api, Kind = kind or "" })
+	end
 
-        local Gui = Utils.New("ScreenGui", {
-            Name = "CelestialRivals",
-            ResetOnSpawn = false,
-            ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-            DisplayOrder = 999,
-            IgnoreGuiInset = true,
-        })
-        pcall(function()
-            Gui.SafeAreaCompatibility = Enum.SafeAreaCompatibility.None
-            Gui.ScreenInsets = Enum.ScreenInsets.None
-        end)
-        Gui.Parent = rootParent
+	local gui = Util.New("ScreenGui", {
+		Name = "EvenesceGui",
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		IgnoreGuiInset = true,
+	})
+	local parented = false
+	if gethui then
+		local ok, h = pcall(gethui)
+		if ok and h then gui.Parent = h parented = true end
+	end
+	if not parented then
+		gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	end
 
-        local Backdrop = Utils.New("Frame", {
-            Name = "Backdrop",
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(0.5, 0.5),
-            Size = UDim2.new(1, 0, 1, 0),
-            BackgroundColor3 = Color3.fromRGB(10, 8, 20),
-            BackgroundTransparency = 1, -- no dim: the game stays fully visible
-            BorderSizePixel = 0,
-            Parent = Gui,
-        })
-        -- Flat dim backdrop (no glow images): keeps full focus on the window.
-        -- (Purple corner glows were removed: they fought the dark theme.)
+	local popups = Util.New("Frame", {
+		Name = "EvenPopups",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 60,
+	}, gui)
 
-        local Scale = Utils.New("UIScale", { Scale = Library._Scale or 1 })
+	local dim = Util.New("TextButton", {
+		Name = "Dim",
+		BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+		BackgroundTransparency = 0.55,
+		Size = UDim2.fromScale(1, 1),
+		Text = "",
+		AutoButtonColor = false,
+		Visible = false,
+		ZIndex = 59,
+	}, gui)
 
-        local Main = Utils.New("Frame", {
-            Name = "Main",
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(0.5, 0.5),
-            Size = winSize,
-            BackgroundColor3 = T.Main,
-            BorderSizePixel = 0,
-            Active = true,
-            Parent = Gui,
-        })
-        Scale.Parent = Main
-        Utils.Corner(Main, ThemeData.Radius.Main)
-        Utils.Stroke(Main, T.Stroke, T.StrokeTrans, 1)
-        Utils.Shadow(Main, 0.55, 60)
+	local root = Util.New("Frame", {
+		Name = "Window",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 0),
+		Size = UDim2.new(0, 980, 0, 600),
+		BackgroundColor3 = Theme.Bg,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, gui)
+	Util.Corner(root, Theme.RadiusWin)
+	Util.Stroke(root, Color3.fromRGB(28, 28, 38), 1)
 
-        local function FitScreen()
-            local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-            local s = math.clamp(math.min(vp.X / 1000, vp.Y / 700), 0.65, 1.1)
-            -- Re-assert centering on every fit (cheap, idempotent): a centered
-            -- AnchorPoint + scale Position keeps Main dead-center on any viewport.
-            Main.AnchorPoint = Vector2.new(0.5, 0.5)
-            Main.Position = UDim2.fromScale(0.5, 0.5)
-            Main.Size = UDim2.fromOffset(winSize.X.Offset, winSize.Y.Offset)
-            Scale.Scale = s * (Library._Scale or 1)
-        end
-        pcall(FitScreen)
-        task.defer(function() pcall(FitScreen) end) -- re-center once layout settles
-        if workspace.CurrentCamera then
-            workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(FitScreen)
-        end
+	local scale = Util.New("UIScale", {}, root)
+	Util.Drag(root, root)
 
-        local DragBar = Utils.New("Frame", {
-            Name = "DragBar",
-            Size = UDim2.new(1, 0, 0, 28),
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            ZIndex = 5,
-            Parent = Main,
-        })
-        Utils.MakeDraggable(Main, DragBar)
+	local top = Util.New("Frame", {
+		Name = "Top",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 72),
+	}, root)
 
-        -- Sidebar
-        local Sidebar = Utils.New("Frame", {
-            Name = "Sidebar",
-            Position = UDim2.new(0, 12, 0, 44),
-            Size = UDim2.new(0, 220, 1, -56),
-            BackgroundColor3 = T.Sidebar,
-            BorderSizePixel = 0,
-            Parent = Main,
-        })
-        Utils.Corner(Sidebar, ThemeData.Radius.Sidebar)
-        Utils.Stroke(Sidebar, T.Stroke, 0.95, 1)
+	local logoIcon = Util.New("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 20, 0, 20),
+		Size = UDim2.new(0, 28, 0, 28),
+	}, top)
+	local b1 = Util.New("Frame", {
+		Position = UDim2.new(0, 0, 0, 4),
+		Size = UDim2.new(0, 24, 0, 8),
+		BackgroundColor3 = Color3.fromRGB(95, 95, 150),
+		BorderSizePixel = 0,
+		Rotation = -8,
+	}, logoIcon)
+	Util.Corner(b1, 3)
+	local b2 = Util.New("Frame", {
+		Position = UDim2.new(0, 0, 0, 16),
+		Size = UDim2.new(0, 24, 0, 8),
+		BackgroundColor3 = Theme.Accent,
+		BorderSizePixel = 0,
+		Rotation = -8,
+	}, logoIcon)
+	Util.Corner(b2, 3)
+	ctx.BindAccent(function(a) b2.BackgroundColor3 = a end)
 
-        local SearchBox = Utils.New("Frame", {
-            Position = UDim2.new(0, 12, 0, 12),
-            Size = UDim2.new(1, -24, 0, 32),
-            BackgroundColor3 = T.Search,
-            BorderSizePixel = 0,
-            Parent = Sidebar,
-        })
-        Utils.Corner(SearchBox, ThemeData.Radius.Search)
-        Utils.Stroke(SearchBox, T.Stroke, 0.95, 1)
+	Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 56, 0, 18),
+		Size = UDim2.new(0, 200, 0, 32),
+		Text = title,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 20,
+		Font = Theme.FontBold,
+		TextColor3 = Theme.Text,
+	}, top)
+	local spark = Icons.Make(top, "star", 11, Theme.Accent)
+	spark.Position = UDim2.new(0, 196, 0, 20)
+	ctx.BindAccent(function(a) spark.ImageColor3 = a end)
 
-        local searchIcon = Icons.New("search", 14, T.TextDark, {
-            AnchorPoint = Vector2.new(0, 0.5),
-            Position = UDim2.new(0, 10, 0.5, 0),
-            Parent = SearchBox,
-        })
-        searchIcon:SetAttribute("IRole", "Dark")
+	local cfgBtn = Util.New("TextButton", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 14),
+		Size = UDim2.new(0, 280, 0, 44),
+		BackgroundColor3 = Theme.Panel,
+		Text = "",
+		AutoButtonColor = false,
+	}, top)
+	Util.Corner(cfgBtn, 10)
+	local cfgIco = Icons.Make(cfgBtn, "box", 17, Theme.TextDim)
+	cfgIco.Position = UDim2.new(0, 12, 0.5, 0)
+	cfgIco.AnchorPoint = Vector2.new(0, 0.5)
+	local cfgLbl = Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 40, 0, 0),
+		Size = UDim2.new(1, -70, 1, 0),
+		Text = "Player",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 14,
+		Font = Theme.FontReg,
+		TextColor3 = Theme.TextMute,
+	}, cfgBtn)
+	local cfgChev = Icons.Make(cfgBtn, "chevron-down", 17, Theme.Text)
+	cfgChev.AnchorPoint = Vector2.new(1, 0.5)
+	cfgChev.Position = UDim2.new(1, -12, 0.5, 0)
 
-        local SearchInput = Utils.New("TextBox", {
-            PlaceholderText = "Search function ...",
-            PlaceholderColor3 = T.TextDark,
-            Text = "",
-            Font = ThemeData.Fonts.Regular,
-            TextSize = 13,
-            TextColor3 = T.Text,
-            BackgroundTransparency = 1,
-            Position = UDim2.new(0, 30, 0, 0),
-            Size = UDim2.new(1, -38, 1, 0),
-            TextXAlignment = Enum.TextXAlignment.Left,
-            ClearTextOnFocus = false,
-            Parent = SearchBox,
-        })
+	local gear = Util.New("TextButton", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -16, 0, 14),
+		Size = UDim2.new(0, 44, 0, 44),
+		BackgroundColor3 = Theme.Panel,
+		Text = "",
+		AutoButtonColor = false,
+	}, top)
+	Util.Corner(gear, 10)
+	local gearIco = Icons.Make(gear, "settings", 18, Theme.Text)
+	gearIco.AnchorPoint = Vector2.new(0.5, 0.5)
+	gearIco.Position = UDim2.new(0.5, 0, 0.5, 0)
 
-        local Logo = Utils.New("Frame", {
-            BackgroundTransparency = 1,
-            Position = UDim2.new(0, 12, 0, 52),
-            Size = UDim2.new(1, -24, 0, 34),
-            Parent = Sidebar,
-        })
-        -- Single RichText label: a real space between halves, no TextBounds racing.
-        local Wordmark = Utils.New("TextLabel", {
-            Font = ThemeData.Fonts.Title,
-            TextSize = ThemeData.Sizes.Title,
-            TextColor3 = T.Text,
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 1, 0),
-            TextXAlignment = Enum.TextXAlignment.Center,
-            TextTruncate = Enum.TextTruncate.AtEnd,
-            RichText = true,
-            Parent = Logo,
-        })
+	local body = Util.New("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 0, 0, 72),
+		Size = UDim2.new(1, 0, 1, -72),
+	}, root)
 
-        local TabHolder = Utils.New("ScrollingFrame", {
-            Position = UDim2.new(0, 8, 0, 94),
-            Size = UDim2.new(1, -16, 1, -102),
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            ScrollBarThickness = 0,
-            CanvasSize = UDim2.new(0, 0, 0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            ScrollingDirection = Enum.ScrollingDirection.Y,
-            Parent = Sidebar,
-        })
-        Utils.New("UIListLayout", {
-            SortOrder = Enum.SortOrder.LayoutOrder,
-            Padding = UDim.new(0, 2),
-            Parent = TabHolder,
-        })
+	local side = Util.New("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 12, 0, 0),
+		Size = UDim2.new(0, 228, 1, -12),
+	}, body)
 
-        -- Top-right user
-        local TopRight = Utils.New("Frame", {
-            BackgroundTransparency = 1,
-            AnchorPoint = Vector2.new(1, 0),
-            Position = UDim2.new(1, -16, 0, 10),
-            Size = UDim2.new(0, 220, 0, 28),
-            Parent = Main,
-        })
-        -- 28px invisible hitbox around the 16px icon (easy to hit).
-        local gearHit = Utils.New("TextButton", {
-            Text = "",
-            BackgroundTransparency = 1,
-            AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -120, 0.5, 0),
-            Size = UDim2.new(0, 28, 0, 28),
-            AutoButtonColor = false,
-            Parent = TopRight,
-        })
-        local gear = Icons.Button("settings", 16, T.TextDim, {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(0.5, 0, 0.5, 0),
-            Parent = gearHit,
-        })
-        gear:SetAttribute("IRole", "Dim")
-        local infoIcon = Icons.New("info", 14, T.TextDark, {
-            AnchorPoint = Vector2.new(0, 0.5),
-            Position = UDim2.new(1, -116, 0.5, 0),
-            Parent = TopRight,
-        })
-        infoIcon:SetAttribute("IRole", "Dark")
-        Utils.New("TextLabel", {
-            Text = username,
-            Font = ThemeData.Fonts.Medium,
-            TextSize = 13,
-            TextColor3 = T.TextDim,
-            BackgroundTransparency = 1,
-            Size = UDim2.new(0, 80, 1, 0),
-            Position = UDim2.new(1, -94, 0, 0),
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextTruncate = Enum.TextTruncate.AtEnd,
-            Parent = TopRight,
-        })
-        local Avatar = Utils.New("Frame", {
-            AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, 0, 0.5, 0),
-            Size = UDim2.new(0, 28, 0, 28),
-            BackgroundColor3 = Color3.fromRGB(200, 200, 205),
-            BorderSizePixel = 0,
-            Parent = TopRight,
-        })
-        Utils.Corner(Avatar, 0, true)
-        local avatarImg = Icons.New("user-round", 16, Color3.fromRGB(40, 40, 45), {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(0.5, 0, 0.5, 0),
-            Parent = Avatar,
-        })
-        Utils.Corner(avatarImg, 0, true) -- circular mask for the headshot below
-        -- Real headshot of the person running the script (non-blocking).
-        task.spawn(function()
-            local ok, lp = pcall(function() return Players.LocalPlayer end)
-            if ok and lp then
-                local ok2, content, ready = pcall(function()
-                    return Players:GetUserThumbnailAsync(lp.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
-                end)
-                if ok2 and ready and typeof(content) == "string" and #content > 0 then
-                    avatarImg.Image = content
-                    avatarImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-                end
-            end
-        end)
+	local searchHolder = Util.New("Frame", {
+		Size = UDim2.new(1, 0, 0, 38),
+		BackgroundTransparency = 1,
+	}, side)
+	local searchBox = InputMod.Search(searchHolder, { Placeholder = "Search" })
 
-        local PageHolder = Utils.New("Frame", {
-            Position = UDim2.new(0, 244, 0, 44),
-            Size = UDim2.new(1, -256, 1, -56),
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            ClipsDescendants = true,
-            Parent = Main,
-        })
+	local nav = Util.New("ScrollingFrame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 0, 0, 46),
+		Size = UDim2.new(1, 0, 1, -46),
+		ScrollBarThickness = 0,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		BorderSizePixel = 0,
+	}, side)
+	Util.List(nav, Enum.FillDirection.Vertical, 2)
 
-        -- Window object
-        local Window = {
-            Gui = Gui,
-            Main = Main,
-            Sidebar = Sidebar,
-            Tabs = {},
-            Pages = {},
-            _TabOrder = 0,
-            _ActiveTab = nil,
-            _Rows = {},
-            _TabHolder = TabHolder,
-            _PageHolder = PageHolder,
-            Accent = accent,
-            Theme = T,
-            ThemeName = themeName,
-            _AccentUpdaters = {},
-            _ThemedCards = {},
-            _Icons = Icons,
-        }
+	local crumb = Util.New("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 252, 0, 0),
+		Size = UDim2.new(1, -268, 0, 38),
+	}, body)
+	local crumbA = Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 0, 0, 0),
+		Size = UDim2.new(0, 120, 1, 0),
+		Text = "General",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 14,
+		Font = Theme.FontMed,
+		TextColor3 = Theme.TextDim,
+	}, crumb)
+	local crumbSep = Icons.Make(crumb, "chevron-right", 14, Theme.TextMute)
+	crumbSep.Position = UDim2.new(0, 86, 0.5, 0)
+	crumbSep.AnchorPoint = Vector2.new(0, 0.5)
+	local crumbB = Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 106, 0, 0),
+		Size = UDim2.new(0, 200, 1, 0),
+		Text = "Player",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 14,
+		Font = Theme.FontReg,
+		TextColor3 = Theme.TextMute,
+	}, crumb)
 
-        function Window:SetAccent(color)
-            self.Accent = color
-            Library._Accent = color
-            self:_RefreshWordmark()
-            for _, tab in pairs(self.Tabs) do
-                if tab.Btn and tab.Active then
-                    tab.Indicator.BackgroundColor3 = color
-                end
-            end
-            for _, fn in ipairs(self._AccentUpdaters) do
-                pcall(fn, color)
-            end
-        end
+	local contentArea = Util.New("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 252, 0, 38),
+		Size = UDim2.new(1, -264, 1, -50),
+		ClipsDescendants = true,
+	}, body)
 
-        function Window:SetTheme(name)
-            local NT = ThemeDefs[name]
-            if not NT then return end
-            self.Theme = NT
-            self.ThemeName = name
-            Library._ThemeName = name
-            Main.BackgroundColor3 = NT.Main
-            Sidebar.BackgroundColor3 = NT.Sidebar
-            SearchBox.BackgroundColor3 = NT.Search
-            for _, e in ipairs(self._ThemedCards) do
-                if e.Obj and e.Obj.Parent then
-                    if e.Role == "Card" then e.Obj.BackgroundColor3 = NT.Card
-                    elseif e.Role == "Row" and not e.Obj:GetAttribute("On") then
-                        e.Obj.BackgroundColor3 = NT.Row
-                    end
-                end
-            end
-            for _, d in ipairs(Main:GetDescendants()) do
-                if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-                    local role = d:GetAttribute("TRole")
-                    if role == "Primary" then d.TextColor3 = NT.Text
-                    elseif role == "Dim" then d.TextColor3 = NT.TextDim
-                    elseif role == "Dark" then d.TextColor3 = NT.TextDark end
-                elseif d:IsA("ImageLabel") or d:IsA("ImageButton") then
-                    local irole = d:GetAttribute("IRole")
-                    if irole == "Primary" then d.ImageColor3 = NT.Text
-                    elseif irole == "Dim" then d.ImageColor3 = NT.TextDim
-                    elseif irole == "Dark" then d.ImageColor3 = NT.TextDark end
-                elseif d:IsA("UIStroke") then
-                    if d:GetAttribute("Hairline") then
-                        d.Color = NT.Stroke
-                        d.Transparency = NT.StrokeTrans
-                    end
-                end
-            end
-            -- active tab icon stays white regardless of theme
-            if self._ActiveTab and self._ActiveTab.Icon then
-                self._ActiveTab.Icon.ImageColor3 = Color3.fromRGB(255, 255, 255)
-            end
-            self:_RefreshWordmark()
-        end
+	local searchPage = Util.New("ScrollingFrame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		ScrollBarThickness = 4,
+		ScrollBarImageColor3 = Theme.Accent,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		Visible = false,
+		BorderSizePixel = 0,
+	}, contentArea)
+	Util.List(searchPage, Enum.FillDirection.Vertical, 8)
+	Util.Padding(searchPage, 0, 0, 8, 12)
+	ctx.BindAccent(function(a) searchPage.ScrollBarImageColor3 = a end)
 
-        function Window:_RefreshWordmark()
-            if not self._Wordmark then return end
-            local function rgb(c)
-                return string.format("rgb(%d,%d,%d)",
-                    math.floor(c.R * 255 + 0.5),
-                    math.floor(c.G * 255 + 0.5),
-                    math.floor(c.B * 255 + 0.5))
-            end
-            self._Wordmark.Text = string.format(
-                '<font color="%s">%s</font> <font color="%s">%s</font>',
-                rgb(self.Theme.Text), self._Title1,
-                rgb(self.Accent), self._Title2)
-        end
+	local pages = {}
+	local currentTab
 
-        function Window:SetScale(s)
-            Library._Scale = math.clamp(s, 0.5, 1.5)
-            FitScreen()
-        end
+	local function addDivider(card)
+		Util.New("Frame", {
+			BackgroundColor3 = Theme.Divider,
+			BackgroundTransparency = 0.4,
+			Size = UDim2.new(1, -28, 0, 1),
+			Position = UDim2.new(0, 14, 0, 0),
+		}, card)
+	end
 
-        function Window:Toggle(visible)
-            if visible == nil then visible = not Main.Visible end
-            Main.Visible = visible
-            Backdrop.Visible = visible
-        end
+	local winApi = {}
 
-        function Window:Unload()
-            Gui:Destroy()
-        end
+	function winApi.SetAccent(c)
+		ctx.SetAccent(c)
+	end
 
-        function Window:Notify(text, sub)
-            local toast = Utils.New("Frame", {
-                AnchorPoint = Vector2.new(1, 1),
-                Position = UDim2.new(1, -14, 1, -14),
-                Size = UDim2.new(0, 250, 0, 56),
-                BackgroundColor3 = self.Theme.Card,
-                BorderSizePixel = 0,
-                ZIndex = 50,
-                Parent = Main,
-            })
-            Utils.Corner(toast, 10)
-            Utils.Hairline(Utils.Stroke(toast, self.Theme.Stroke, 0.93, 1), self.Theme)
-            Utils.New("TextLabel", {
-                Text = text or "Saved",
-                Font = ThemeData.Fonts.Medium,
-                TextSize = 13,
-                TextColor3 = self.Theme.Text,
-                BackgroundTransparency = 1,
-                Position = UDim2.new(0, 12, 0, 8),
-                Size = UDim2.new(1, -24, 0, 18),
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = toast,
-            })
-            Utils.New("TextLabel", {
-                Text = sub or "",
-                Font = ThemeData.Fonts.Regular,
-                TextSize = 12,
-                TextColor3 = self.Theme.TextDim,
-                BackgroundTransparency = 1,
-                Position = UDim2.new(0, 12, 0, 28),
-                Size = UDim2.new(1, -24, 0, 16),
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = toast,
-            })
-            Utils.Tween(toast, { Position = UDim2.new(1, -14, 1, -70) }, 0.25)
-            task.delay(2.2, function()
-                local tw = Utils.Tween(toast, { Position = UDim2.new(1, -14, 1, -14) }, 0.25)
-                tw.Completed:Wait()
-                pcall(function() toast:Destroy() end)
-            end)
-        end
+	local openSub = nil
+	local subLang, subDpi, subStyle
+	local settingsFrame
+	local settingsOpen = false
 
-        SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
-            local q = string.lower(SearchInput.Text)
-            for _, row in ipairs(Window._Rows) do
-                if q == "" then
-                    row.Frame.Visible = true
-                else
-                    row.Frame.Visible = (string.find(string.lower(row.Name or ""), q, 1, true) ~= nil)
-                end
-            end
-        end)
+	local function toggleSub(which)
+		if subLang then subLang:Destroy() subLang = nil end
+		if subDpi then subDpi:Destroy() subDpi = nil end
+		if subStyle then subStyle:Destroy() subStyle = nil end
+		if openSub == which then openSub = nil return end
+		openSub = which
+		if not settingsFrame then return end
+		if which == "lang" then
+			subLang = Util.New("Frame", {
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(0, -8, 0, 0),
+				Size = UDim2.new(0, 220, 0, 86),
+				BackgroundColor3 = Color3.fromRGB(22, 22, 30),
+				ZIndex = 71,
+			}, settingsFrame)
+			Util.Corner(subLang, 10)
+			Util.Stroke(subLang, Theme.Stroke, 1)
+			Util.Padding(subLang, 6, 8, 6, 8)
+			Util.List(subLang, Enum.FillDirection.Vertical, 4)
+			local langs = { "Russian", "English" }
+			local sel = "English"
+			for _, l in ipairs(langs) do
+				local b = Util.New("TextButton", {
+					Size = UDim2.new(1, 0, 0, 34),
+					BackgroundColor3 = l == sel and Color3.fromRGB(30, 30, 42) or Color3.fromRGB(22, 22, 30),
+					Text = "",
+					AutoButtonColor = false,
+				}, subLang)
+				Util.Corner(b, 6)
+				if l == sel then
+					local ck = Icons.Make(b, "check", 14, Theme.Text)
+					ck.Position = UDim2.new(0, 10, 0.5, 0)
+					ck.AnchorPoint = Vector2.new(0, 0.5)
+				end
+				Util.New("TextLabel", {
+					BackgroundTransparency = 1,
+					Position = UDim2.new(0, l == sel and 32 or 12, 0, 0),
+					Size = UDim2.new(1, -40, 1, 0),
+					Text = l,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextSize = 13,
+					Font = Theme.FontMed,
+					TextColor3 = Theme.Text,
+				}, b)
+				b.MouseButton1Click:Connect(function()
+					sel = l
+					local cur = openSub
+					openSub = nil
+					toggleSub(cur)
+					toggleSub(cur)
+				end)
+			end
+		elseif which == "dpi" then
+			subDpi = Util.New("Frame", {
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(0, -8, 0, 0),
+				Size = UDim2.new(0, 240, 0, 108),
+				BackgroundColor3 = Color3.fromRGB(22, 22, 30),
+				ZIndex = 71,
+			}, settingsFrame)
+			Util.Corner(subDpi, 10)
+			Util.Stroke(subDpi, Theme.Stroke, 1)
+			Util.Padding(subDpi, 10, 12, 10, 12)
+			local inner = Util.New("Frame", {
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+			}, subDpi)
+			SliderMod.Create(inner, { Name = "DPI", Min = 50, Max = 150, Default = 100, Callback = function(v)
+				scale.Scale = math.clamp(v / 100, 0.7, 1.4)
+			end }, ctx)
+			local ar = Util.New("Frame", {
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, 28),
+			}, inner)
+			Util.New("TextLabel", {
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, -40, 1, 0),
+				Text = "Auto scale",
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextSize = 13,
+				Font = Theme.FontMed,
+				TextColor3 = Theme.Text,
+			}, ar)
+			local ab = Util.New("TextButton", {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, 0, 0.5, 0),
+				Size = UDim2.new(0, 20, 0, 20),
+				BackgroundColor3 = Theme.Accent,
+				Text = "",
+				AutoButtonColor = false,
+			}, ar)
+			Util.Corner(ab, 5)
+			local abCheck = Icons.Make(ab, "check", 13, Color3.fromRGB(18, 18, 28))
+			abCheck.AnchorPoint = Vector2.new(0.5, 0.5)
+			abCheck.Position = UDim2.new(0.5, 0, 0.5, 0)
+			local on = true
+			ab.MouseButton1Click:Connect(function()
+				on = not on
+				ab.BackgroundColor3 = on and Theme.Accent or Theme.CheckOff
+				abCheck.ImageTransparency = on and 0 or 1
+				if on then scale.Scale = 1 end
+			end)
+			ctx.BindAccent(function(a) if on then ab.BackgroundColor3 = a end end)
+		elseif which == "style" then
+			subStyle = Util.New("Frame", {
+				AnchorPoint = Vector2.new(0, 0),
+				Position = UDim2.new(1, 8, 0, 40),
+				Size = UDim2.new(0, 250, 0, 300),
+				BackgroundColor3 = Color3.fromRGB(22, 22, 30),
+				ZIndex = 71,
+			}, settingsFrame)
+			Util.Corner(subStyle, 12)
+			Util.Stroke(subStyle, Theme.Stroke, 1)
+			Util.Padding(subStyle, 8, 8, 8, 8)
+			local inner = Util.New("Frame", {
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+			}, subStyle)
+			ColorMod.Inline(inner, { Name = "Menu accent", Default = Theme.Accent, Callback = function(c) ctx.SetAccent(c) end }, ctx)
+		end
+	end
 
-        UserInputService.InputBegan:Connect(function(input, gpe)
-            if gpe then return end
-            if input.KeyCode == Enum.KeyCode.RightShift or input.KeyCode == Enum.KeyCode.Insert then
-                Window:Toggle()
-            end
-        end)
+	local function buildSettings()
+		if settingsFrame then settingsFrame:Destroy() settingsFrame = nil end
+		settingsFrame = Util.New("Frame", {
+			Name = "Settings",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -12, 0, 64),
+			Size = UDim2.new(0, 260, 0, 320),
+			BackgroundColor3 = Color3.fromRGB(22, 22, 30),
+			BorderSizePixel = 0,
+			ZIndex = 70,
+			Visible = settingsOpen,
+		}, root)
+		Util.Corner(settingsFrame, 12)
+		Util.Stroke(settingsFrame, Theme.Stroke, 1)
+		Util.Padding(settingsFrame, 12, 12, 12, 12)
 
-        -- Modals (need Window.Main first, so build here)
-        local colorApi = BuildColorPicker(Window, Utils, ThemeData)
-        Window._ColorApi = colorApi
-        function Window:OpenColorPicker(default, cb, anchor)
-            colorApi.Open(default, cb, anchor)
-        end
+		local prof = Util.New("Frame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, 0, 0, 52),
+		}, settingsFrame)
+		local av = Util.New("Frame", {
+			Size = UDim2.new(0, 44, 0, 44),
+			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+			BorderSizePixel = 0,
+		}, prof)
+		Util.Corner(av, 22)
+		local avIco = Icons.Make(av, "user", 26, Color3.fromRGB(10, 10, 14))
+		avIco.AnchorPoint = Vector2.new(0.5, 0.5)
+		avIco.Position = UDim2.new(0.5, 0, 0.5, 0)
+		Util.New("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 52, 0, 2),
+			Size = UDim2.new(1, -52, 0, 22),
+			Text = user,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 15,
+			Font = Theme.FontMed,
+			TextColor3 = Theme.Text,
+		}, prof)
+		Util.New("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 52, 0, 24),
+			Size = UDim2.new(1, -52, 0, 20),
+			Text = "Till:  " .. till,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 13,
+			Font = Theme.FontReg,
+			TextColor3 = Theme.TextMute,
+		}, prof)
 
-        local settingsFrame = BuildSettings(Window, Utils, ThemeData)
-        Window._Settings = settingsFrame
+		Util.New("Frame", {
+			BackgroundColor3 = Theme.Divider,
+			BackgroundTransparency = 0.3,
+			Size = UDim2.new(1, 0, 0, 1),
+		}, settingsFrame)
 
-        gearHit.MouseButton1Click:Connect(function()
-            local isOpen = not settingsFrame.Visible
-            settingsFrame.Visible = isOpen
-            if Window._SettingsZone then
-                Window._SettingsZone.Visible = isOpen
-            end
-        end)
-        gearHit.MouseEnter:Connect(function()
-            gear:SetAttribute("IRole", "Active")
-            Utils.Tween(gear, { ImageColor3 = Window.Accent }, 0.15)
-        end)
-        gearHit.MouseLeave:Connect(function()
-            gear:SetAttribute("IRole", "Dim")
-            Utils.Tween(gear, { ImageColor3 = Window.Theme.TextDim }, 0.15)
-        end)
+		local rows = {
+			{ Ico = "plus-circle", Name = "Installed hotkeys", Id = "hotkeys" },
+			{ Ico = "languages", Name = "Menu language", Id = "lang" },
+			{ Ico = "scaling", Name = "DPI Menu", Id = "dpi" },
+			{ Ico = "palette", Name = "Styles", Id = "styles", Extra = true },
+		}
+		for _, r in ipairs(rows) do
+			local b = Util.New("TextButton", {
+				Size = UDim2.new(1, 0, 0, 42),
+				BackgroundColor3 = Color3.fromRGB(22, 22, 30),
+				Text = "",
+				AutoButtonColor = false,
+			}, settingsFrame)
+			Util.Corner(b, 8)
+			local ri = Icons.Make(b, r.Ico, 16, Theme.TextDim)
+			ri.Position = UDim2.new(0, 8, 0.5, 0)
+			ri.AnchorPoint = Vector2.new(0, 0.5)
+			Util.New("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, 34, 0, 0),
+				Size = UDim2.new(1, -70, 1, 0),
+				Text = r.Name,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextSize = 14,
+				Font = Theme.FontMed,
+				TextColor3 = Theme.Text,
+			}, b)
+			if r.Extra then
+				local sunIco = Icons.Make(b, "sun", 15, Theme.TextDim)
+				sunIco.AnchorPoint = Vector2.new(1, 0.5)
+				sunIco.Position = UDim2.new(1, -28, 0.5, 0)
+				local dot = Util.New("Frame", {
+					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, -6, 0.5, 0),
+					Size = UDim2.new(0, 14, 0, 14),
+					BackgroundColor3 = Theme.Accent,
+					BorderSizePixel = 0,
+				}, b)
+				Util.Corner(dot, 7)
+				ctx.BindAccent(function(a) dot.BackgroundColor3 = a end)
+			end
+			local chv = Icons.Make(b, "chevron-right", 16, Theme.TextDim)
+			chv.AnchorPoint = Vector2.new(1, 0.5)
+			chv.Position = UDim2.new(1, -8, 0.5, 0)
+			b.MouseButton1Click:Connect(function()
+				if r.Id == "hotkeys" then
+					winApi.ShowHotkeys()
+				elseif r.Id == "lang" then
+					toggleSub("lang")
+				elseif r.Id == "dpi" then
+					toggleSub("dpi")
+				elseif r.Id == "styles" then
+					toggleSub("style")
+				end
+			end)
+		end
+		Util.List(settingsFrame, Enum.FillDirection.Vertical, 4)
+	end
 
-        -- Tab factory + attach controls
-        function Window:Tab(tabOpts)
-            local Tab = CreateTab(self, Utils, ThemeData, tabOpts)
-            -- attach control constructors (edit list here to add new controls)
-            function Tab:Toggle(t) return Controls.Toggle(self, Utils, ThemeData, Library, t) end
-            function Tab:Slider(t) return Controls.SliderModule.CreateSlider(self, Utils, ThemeData, Library, t) end
-            function Tab:Range(t) return Controls.SliderModule.CreateRange(self, Utils, ThemeData, Library, t) end
-            function Tab:Dropdown(t) return Controls.Dropdown(self, Utils, ThemeData, Library, t) end
-            function Tab:Colorpicker(t)
-                t = t or {}
-                local rowName = t.Name or "Color"
-                local col = t.Default or self.Window.Accent
-                Library.Flags[rowName] = col
-                local row = self:_Row(rowName, 44)
-                local prev = Utils.New("TextButton", {
-                    Text = "",
-                    AnchorPoint = Vector2.new(1, 0.5),
-                    Position = UDim2.new(1, -12, 0.5, 0),
-                    Size = UDim2.new(0, 22, 0, 22),
-                    BackgroundColor3 = col,
-                    BorderSizePixel = 0,
-                    AutoButtonColor = false,
-                    Parent = row,
-                })
-                Utils.Corner(prev, 0, true)
-                Utils.Stroke(prev, Color3.fromRGB(255, 255, 255), 0.85, 1)
-                prev.MouseButton1Click:Connect(function()
-                    self.Window:OpenColorPicker(col, function(c)
-                        col = c
-                        Library.Flags[rowName] = c
-                        prev.BackgroundColor3 = c
-                        if t.Callback then task.spawn(t.Callback, c) end
-                    end)
-                end)
-                return {
-                    Set = function(c) col = c prev.BackgroundColor3 = c Library.Flags[rowName] = c end,
-                    Get = function() return col end,
-                    Row = row,
-                }
-            end
-            return Tab
-        end
+	function winApi.AddTab(def)
+		def = def or {}
+		local tname = def.Name or "Tab"
+		local ticon = def.Icon or tname
 
-        Window._Wordmark = Wordmark
-        Window._Title1 = title1
-        Window._Title2 = title2
-        Window:_RefreshWordmark()
+		local navBtn = Util.New("TextButton", {
+			Size = UDim2.new(1, 0, 0, 46),
+			BackgroundColor3 = Theme.Bg,
+			BackgroundTransparency = 1,
+			Text = "",
+			AutoButtonColor = false,
+		}, nav)
+		Util.Corner(navBtn, 8)
 
-        table.insert(Library._Windows, Window)
-        return Window
-    end
+		local indicator = Util.New("Frame", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, -12, 0.5, 0),
+			Size = UDim2.new(0, 4, 0, 20),
+			BackgroundColor3 = Theme.Accent,
+			Visible = false,
+			BorderSizePixel = 0,
+		}, navBtn)
+		Util.Corner(indicator, 2)
+		ctx.BindAccent(function(a) indicator.BackgroundColor3 = a end)
 
-    return CreateWindow
+		local ico = Icons.Make(navBtn, ticon, 18, Theme.TextMute)
+		ico.Name = "Ico"
+		ico.Position = UDim2.new(0, 14, 0.5, 0)
+		ico.AnchorPoint = Vector2.new(0, 0.5)
+		local nLbl = Util.New("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 44, 0, 0),
+			Size = UDim2.new(1, -54, 1, 0),
+			Text = tname,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 14,
+			Font = Theme.FontMed,
+			TextColor3 = Theme.TextMute,
+			Name = "Lbl",
+		}, navBtn)
+
+		local page = Util.New("ScrollingFrame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			ScrollBarThickness = 4,
+			ScrollBarImageColor3 = Theme.Accent,
+			CanvasSize = UDim2.new(0, 0, 0, 0),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			Visible = false,
+			BorderSizePixel = 0,
+		}, contentArea)
+		Util.Padding(page, 0, 0, 8, 8)
+		ctx.BindAccent(function(a) page.ScrollBarImageColor3 = a end)
+
+		local cols = Util.New("Frame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -8, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+		}, page)
+		Util.New("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			Padding = UDim.new(0, 12),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}, cols)
+		local left = Util.New("Frame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(0.5, -6, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+		}, cols)
+		Util.List(left, Enum.FillDirection.Vertical, 12)
+		local right = Util.New("Frame", {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(0.5, -6, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+		}, cols)
+		Util.List(right, Enum.FillDirection.Vertical, 12)
+
+		local tab = { Name = tname, Page = page, Button = navBtn }
+
+		local function select()
+			if currentTab then
+				currentTab.Page.Visible = false
+				currentTab.Button.BackgroundTransparency = 1
+				local li = currentTab.Button:FindFirstChild("Lbl")
+				if li then li.TextColor3 = Theme.TextMute end
+				local ii = currentTab.Button:FindFirstChild("Ico")
+				if ii and ii:IsA("ImageLabel") then ii.ImageColor3 = Theme.TextMute end
+				for _, ch in ipairs(currentTab.Button:GetChildren()) do
+					if ch:IsA("Frame") then ch.Visible = false end
+				end
+			end
+			currentTab = tab
+			page.Visible = true
+			searchPage.Visible = false
+			if searchBox and searchBox.Box then searchBox.Box.Text = "" end
+			navBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+			navBtn.BackgroundTransparency = 0
+			nLbl.TextColor3 = Theme.Text
+			ico.ImageColor3 = Theme.Text
+			indicator.Visible = true
+			crumbA.Text = tname
+			crumbB.Text = tname == "General" and "Player" or ""
+		end
+
+		navBtn.MouseButton1Click:Connect(select)
+		pages[#pages + 1] = tab
+		ctx.tabs[#ctx.tabs + 1] = tab
+		if #pages == 1 then select() end
+
+		function tab.AddSection(sdef)
+			sdef = sdef or {}
+			local stitle = sdef.Title or ""
+			local sideSel = sdef.Side or sdef.Column or "Left"
+			local host = (sideSel == "Right" or sideSel == 2 or sideSel == "right") and right or left
+
+			local outer = Util.New("Frame", {
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+			}, host)
+
+			if stitle ~= "" then
+				Util.New("TextLabel", {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 0, 22),
+					Text = stitle,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextSize = 14,
+					Font = Theme.FontMed,
+					TextColor3 = Theme.TextMute,
+				}, outer)
+			end
+
+			local card = Util.New("Frame", {
+				BackgroundColor3 = Theme.Card,
+				Size = UDim2.new(1, 0, 0, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				BorderSizePixel = 0,
+			}, outer)
+			Util.Corner(card, Theme.RadiusCard)
+			Util.List(card, Enum.FillDirection.Vertical, 0)
+			Util.Padding(card, 4, 0, 4, 0)
+
+			local sec = {}
+			local order = 0
+			local function bump()
+				order = order + 1
+				return order
+			end
+			local function sep()
+				addDivider(card)
+			end
+
+			function sec.AddToggle(o)
+				o.Order = bump()
+				local api = ToggleMod.Create(card, o, ctx)
+				sep()
+				ctx.TrackElement(o.Name, api, "Toggle")
+				local chevBtn = Util.New("TextButton", {
+					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, -6, 0.5, 0),
+					Size = UDim2.new(0, 36, 0, 32),
+					BackgroundTransparency = 1,
+					Text = "",
+					ZIndex = 2,
+				}, api.Row)
+				chevBtn.MouseButton1Click:Connect(function()
+					local mPos = UserInputService:GetMouseLocation()
+					KeybindMod.Popup(popups, {
+						Key = "Mouse 5",
+						Mode = "Toggle",
+						Position = UDim2.new(0, mPos.X, 0, mPos.Y),
+						Callback = function() end,
+					})
+				end)
+				return api
+			end
+			function sec.AddButton(o)
+				o.Order = bump()
+				local wrap = Util.New("Frame", {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 0, (o.Height or 38) + 12),
+				}, card)
+				Util.Padding(wrap, 6, 14, 6, 14)
+				local bWrap = Util.New("Frame", {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 0, o.Height or 38),
+				}, wrap)
+				local api = ButtonMod.Create(bWrap, o)
+				ctx.TrackElement(o.Name, api, "Button")
+				return api
+			end
+			function sec.AddSlider(o)
+				o.Order = bump()
+				local api = SliderMod.Create(card, o, ctx)
+				sep()
+				ctx.TrackElement(o.Name, api, "Slider")
+				return api
+			end
+			function sec.AddDropdown(o)
+				o.Order = bump()
+				local wrap = Util.New("Frame", {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 0, 68),
+				}, card)
+				local api = DropdownMod.Create(wrap, o, ctx)
+				ctx.TrackElement(o.Name or o.Title, api, "Dropdown")
+				return api
+			end
+			function sec.AddColorpicker(o)
+				o.Order = bump()
+				o.Callback = o.Callback or function(c) ctx.SetAccent(c) end
+				local api = ColorMod.Inline(card, o, ctx)
+				ctx.TrackElement(o.Name, api, "Color")
+				return api
+			end
+			function sec.AddCoords(o)
+				return InputMod.Coords(card, o or {}, ctx)
+			end
+			function sec.AddInput(o)
+				o.Order = bump()
+				local wrap = Util.New("Frame", {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 0, 48),
+				}, card)
+				Util.Padding(wrap, 6, 14, 6, 14)
+				local inner = Util.New("Frame", {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 1, 0),
+				}, wrap)
+				local api = InputMod.Textbox(inner, o)
+				ctx.TrackElement(o.Name or o.Placeholder, api, "Input")
+				return api
+			end
+			function sec.AddLabel(o)
+				local t = Util.New("TextLabel", {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 0, 22),
+					Text = (type(o) == "string" and o) or o.Text or "Label",
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextSize = 13,
+					Font = Theme.FontReg,
+					TextColor3 = Theme.TextMute,
+				}, card)
+				Util.Padding(t, 0, 14, 0, 14)
+				return t
+			end
+			return sec
+		end
+
+		return tab
+	end
+
+	gear.MouseButton1Click:Connect(function()
+		settingsOpen = not settingsOpen
+		if settingsOpen then
+			buildSettings()
+		else
+			if settingsFrame then settingsFrame.Visible = false end
+			if subLang then subLang:Destroy() subLang = nil end
+			if subDpi then subDpi:Destroy() subDpi = nil end
+			if subStyle then subStyle:Destroy() subStyle = nil end
+			openSub = nil
+		end
+	end)
+
+	local presetFrame
+	local function closePreset()
+		if presetFrame then presetFrame:Destroy() presetFrame = nil end
+		local cf = popups:FindFirstChild("CreatePopup")
+		if cf then cf:Destroy() end
+	end
+
+	cfgBtn.MouseButton1Click:Connect(function()
+		if presetFrame then closePreset() return end
+		presetFrame = Util.New("Frame", {
+			Name = "PresetPopup",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0, 64),
+			Size = UDim2.new(0, 280, 0, 300),
+			BackgroundColor3 = Color3.fromRGB(22, 22, 30),
+			ZIndex = 70,
+		}, root)
+		Util.Corner(presetFrame, 12)
+		Util.Stroke(presetFrame, Theme.Stroke, 1)
+		Util.Padding(presetFrame, 10, 10, 10, 10)
+
+		local hr = Util.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 36) }, presetFrame)
+		local pill = Util.New("Frame", {
+			Size = UDim2.new(0, 110, 0, 32),
+			BackgroundColor3 = Theme.Input,
+			BorderSizePixel = 0,
+		}, hr)
+		Util.Corner(pill, 8)
+		local pillIco = Icons.Make(pill, "cloud", 15, Theme.Text)
+		pillIco.Position = UDim2.new(0, 10, 0.5, 0)
+		pillIco.AnchorPoint = Vector2.new(0, 0.5)
+		Util.New("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 32, 0, 0),
+			Size = UDim2.new(1, -36, 1, 0),
+			Text = "Presets",
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 13,
+			Font = Theme.FontMed,
+			TextColor3 = Theme.Text,
+		}, pill)
+		local plus = Util.New("TextButton", {
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, 0, 0, 0),
+			Size = UDim2.new(0, 32, 0, 32),
+			BackgroundColor3 = Theme.Input,
+			Text = "",
+		}, hr)
+		Util.Corner(plus, 8)
+		local plusIco = Icons.Make(plus, "plus", 16, Theme.Text)
+		plusIco.AnchorPoint = Vector2.new(0.5, 0.5)
+		plusIco.Position = UDim2.new(0.5, 0, 0.5, 0)
+
+		local srow = Util.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 36) }, presetFrame)
+		local sbox = Util.New("Frame", {
+			BackgroundColor3 = Theme.Input,
+			Size = UDim2.new(1, -36, 0, 32),
+			BorderSizePixel = 0,
+		}, srow)
+		Util.Corner(sbox, 8)
+		local sIco = Icons.Make(sbox, "search", 14, Theme.TextMute)
+		sIco.Position = UDim2.new(0, 10, 0.5, 0)
+		sIco.AnchorPoint = Vector2.new(0, 0.5)
+		Util.New("TextBox", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 30, 0, 0),
+			Size = UDim2.new(1, -40, 1, 0),
+			Text = "",
+			PlaceholderText = "Search",
+			PlaceholderColor3 = Theme.TextMute,
+			TextSize = 13,
+			Font = Theme.FontReg,
+			TextColor3 = Theme.Text,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			BorderSizePixel = 0,
+		}, sbox)
+		local sortIco = Icons.Make(srow, "arrow-up-down", 15, Theme.Text)
+		sortIco.AnchorPoint = Vector2.new(1, 0.5)
+		sortIco.Position = UDim2.new(1, -4, 0.5, 0)
+
+		for i = 1, 3 do
+			local r = Util.New("TextButton", {
+				Size = UDim2.new(1, 0, 0, 44),
+				BackgroundColor3 = Theme.Input,
+				Text = "",
+				AutoButtonColor = false,
+			}, presetFrame)
+			Util.Corner(r, 8)
+			if i == 1 then Util.Stroke(r, Theme.Accent, 1) end
+			Util.New("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, 12, 0, 0),
+				Size = UDim2.new(1, -50, 1, 0),
+				Text = "New config",
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextSize = 13,
+				Font = Theme.FontMed,
+				TextColor3 = Theme.Text,
+			}, r)
+			local dIco = Icons.Make(r, "more-horizontal", 16, Theme.Text)
+			dIco.AnchorPoint = Vector2.new(1, 0.5)
+			dIco.Position = UDim2.new(1, -10, 0.5, 0)
+		end
+		Util.List(presetFrame, Enum.FillDirection.Vertical, 6)
+
+		plus.MouseButton1Click:Connect(function()
+			local cp = popups:FindFirstChild("CreatePopup")
+			if cp then cp:Destroy() return end
+			local c2 = Util.New("Frame", {
+				Name = "CreatePopup",
+				Size = UDim2.new(0, 260, 0, 130),
+				Position = UDim2.new(0, 560, 0, 120),
+				BackgroundColor3 = Color3.fromRGB(22, 22, 30),
+				ZIndex = 72,
+			}, popups)
+			Util.Corner(c2, 12)
+			Util.Stroke(c2, Theme.Stroke, 1)
+			Util.Padding(c2, 10, 10, 10, 10)
+			Util.List(c2, Enum.FillDirection.Vertical, 8)
+			InputMod.Textbox(c2, { Placeholder = "Create a new", Icon = "plus-circle" })
+			ButtonMod.Create(c2, { Name = "Create", Accent = true })
+		end)
+	end)
+
+	function winApi.ShowHotkeys(rows)
+		rows = rows or {
+			{ "Enable NPS ESP", "Mouse5", "Toggle" },
+			{ "Enable NPS ESP", "Mouse5", "Hold" },
+			{ "Enable NPS ESP", "Mouse5", "Toggle" },
+		}
+		dim.Visible = true
+		local h = KeybindMod.HotkeyTable(popups, rows)
+		h.Frame.AnchorPoint = Vector2.new(0.5, 0)
+		h.Frame.Position = UDim2.new(0.5, 0, 0, 90)
+		local conn
+		conn = dim.MouseButton1Click:Connect(function()
+			h.Close() dim.Visible = false
+			conn:Disconnect()
+		end)
+	end
+
+	local function doSearch(q)
+		q = string.lower(q or "")
+		if q == "" then
+			searchPage.Visible = false
+			if currentTab then currentTab.Page.Visible = true end
+			crumbA.Text = currentTab and currentTab.Name or "General"
+			return
+		end
+		if currentTab then currentTab.Page.Visible = false end
+		searchPage.Visible = true
+		for _, ch in ipairs(searchPage:GetChildren()) do
+			if not ch:IsA("UIListLayout") and not ch:IsA("UIPadding") then ch:Destroy() end
+		end
+		crumbA.Text = "Search elements"
+
+		local card = Util.New("Frame", {
+			BackgroundColor3 = Theme.Card,
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+		}, searchPage)
+		Util.Corner(card, 12)
+		Util.List(card, Enum.FillDirection.Vertical, 0)
+		Util.Padding(card, 4, 0, 4, 0)
+
+		local found = 0
+		for _, e in ipairs(ctx.all) do
+			if string.find(string.lower(e.Name), q, 1, true) then
+				found = found + 1
+				local r = Util.New("Frame", {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 0, 48),
+				}, card)
+				local st = false
+				if e.Api and e.Api.Get then
+					local ok, v = pcall(function() return e.Api.Get() end)
+					if ok and type(v) == "boolean" then st = v end
+				end
+				local bx = Util.New("Frame", {
+					AnchorPoint = Vector2.new(0, 0.5),
+					Position = UDim2.new(0, 14, 0.5, 0),
+					Size = UDim2.new(0, 20, 0, 20),
+					BackgroundColor3 = st and Theme.Accent or Theme.CheckOff,
+					BorderSizePixel = 0,
+				}, r)
+				Util.Corner(bx, 6)
+				local ck = Icons.Make(bx, "check", 13, st and Color3.fromRGB(18, 18, 28) or Color3.fromRGB(90, 90, 110))
+				ck.AnchorPoint = Vector2.new(0.5, 0.5)
+				ck.Position = UDim2.new(0.5, 0, 0.5, 0)
+				ck.ImageTransparency = st and 0 or 0.4
+				Util.New("TextLabel", {
+					BackgroundTransparency = 1,
+					Position = UDim2.new(0, 44, 0, 0),
+					Size = UDim2.new(1, -80, 1, 0),
+					Text = e.Name,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextSize = 14,
+					Font = Theme.FontMed,
+					TextColor3 = Theme.Text,
+				}, r)
+				local chv = Icons.Make(r, "chevron-right", 18, Theme.TextMute)
+				chv.AnchorPoint = Vector2.new(1, 0.5)
+				chv.Position = UDim2.new(1, -12, 0.5, 0)
+				if found < 20 then
+					addDivider(card)
+				end
+			end
+		end
+		if found == 0 then
+			Util.New("TextLabel", {
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, 48),
+				Text = "Nothing found",
+				TextSize = 13,
+				Font = Theme.FontReg,
+				TextColor3 = Theme.TextMute,
+			}, card)
+		end
+	end
+
+	searchBox.Box:GetPropertyChangedSignal("Text"):Connect(function()
+		doSearch(searchBox.Box.Text)
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, gpe)
+		if gpe then return end
+		if input.KeyCode == Enum.KeyCode.RightShift then
+			root.Visible = not root.Visible
+		end
+	end)
+
+	winApi.Gui = gui
+	winApi.Root = root
+	winApi.Ctx = ctx
+
+	return winApi
 end
+
+return Window

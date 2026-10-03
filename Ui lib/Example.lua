@@ -1,112 +1,45 @@
---[[
-    Celestial Rivals UI — Example.lua
-    Recreates the reference screenshot: Aimbot/Triggerbot/... sidebar,
-    ACCURACY section, Recoil control, sliders, toggles, color picker.
-    The demo loads the lib itself (see below): GitHub loadstring by
-    default, flip USE_LOCAL to test unpushed edits. Studio: place this
-    file next to Init so the require() fallback hits.
-]]
+local Lib = require(script.Parent:WaitForChild("Main"))
 
--- How the lib is loaded (pick one):
---   false = GitHub bundle via loadstring (latest PUSHED version, easiest for testing)
---   true  = local modules (use this to test UNPUSHED edits without pushing)
-local USE_LOCAL = false
-
-local BUNDLE_URL = "https://raw.githubusercontent.com/4shrxx-afk/Celestial-Rivals/main/CelestialUI.lua"
-local LOCAL_INIT = "Celestial Scripts/Celestial Rivals/Ui lib/Init.lua"
-
-local UI = nil
-if not USE_LOCAL then
-    -- Primary: loadstring from GitHub (single file, one HTTP request)
-    local ok, res = pcall(function()
-        return loadstring(game:HttpGet(BUNDLE_URL))()
-    end)
-    if ok and res then
-        UI = res
-    else
-        warn("[Example] loadstring failed, trying local fallbacks:", res)
-    end
-end
-if not UI then
-    -- Fallback 1: Studio ModuleScript (Example placed next to Init)
-    pcall(function() UI = require(script.Parent.Init) end)
-end
-if not UI and typeof(readfile) == "function" then
-    -- Fallback 2: local Init.lua through the executor filesystem
-    local ok, src = pcall(readfile, LOCAL_INIT)
-    if ok and src then
-        local fn = loadstring(src, "@Init")
-        if fn then
-            local ok2, res2 = pcall(fn)
-            if ok2 then UI = res2 end
-        end
-    end
-end
-assert(UI, "Could not load CelestialUI (check BUNDLE_URL / local path)")
-
-local Win = UI:CreateWindow({
-    Title = "CELESTIAL",
-    AccentTitle = "RIVALS",
-    -- User + avatar default to whoever runs the script (DisplayName + headshot).
-    Theme = "Dark",
-    Accent = Color3.fromRGB(148, 150, 255),
+local Win = Lib.CreateWindow({
+	Title = "Evenesce",
+	User = "Past Owl",
+	Till = "1 Jan 2025",
 })
 
--- Sidebar tabs (match reference order)
-local aim = Win:Tab({ Name = "Aimbot" })
-local trigger = Win:Tab({ Name = "Triggerbot" })
-local flick = Win:Tab({ Name = "Flickbot" })
-local players = Win:Tab({ Name = "Players" })
-local world = Win:Tab({ Name = "World" })
-local plist = Win:Tab({ Name = "Player list" })
-local configs = Win:Tab({ Name = "Configs" })
-local misc = Win:Tab({ Name = "Miscellaneous" })
+local General = Win.AddTab({ Name = "General", Icon = "crosshair" })
+local Visuals = Win.AddTab({ Name = "Visuals", Icon = "eye" })
+local Weapon = Win.AddTab({ Name = "Weapon", Icon = "sword" })
+local Vehicle = Win.AddTab({ Name = "Vehicle", Icon = "car" })
+local Server = Win.AddTab({ Name = "Server", Icon = "server" })
+local Player = Win.AddTab({ Name = "Player", Icon = "user" })
+local Misc = Win.AddTab({ Name = "Misc", Icon = "sliders-horizontal" })
+local LuaSys = Win.AddTab({ Name = "Lua system", Icon = "code" })
+local Exec = Win.AddTab({ Name = "Executor", Icon = "cpu" })
 
--- Aimbot page (right side in reference)
-aim:Section("ACCURACY")
-aim:Dropdown({
-    Name = "Recoil control",
-    Options = { "Off", "Legit", "Rage", "Custom curve" },
-    Default = "Legit",
-    Callback = function(v) print("recoil:", v) end,
-})
-aim:Slider({ Name = "FOV size", Min = 0, Max = 30, Default = 10, Decimals = 1, Suffix = "", Callback = function(v) end })
-aim:Toggle({ Name = "First bullet accuracy", Default = true })
-aim:Dropdown({ Name = "Hitbox override", Options = { "Head", "Chest", "Pelvis", "Pistols" }, Default = "Pistols" })
-aim:Toggle({ Name = "Penetrate walls", Default = true })
-aim:Slider({ Name = "Kill delay", Min = 0, Max = 1000, Default = 500, Callback = function(v) end })
-aim:Range({ Name = "First bullet delay", Min = 0, Max = 1000, DefaultMin = 200, DefaultMax = 700 })
+local P1 = General.AddSection({ Title = "Player options", Side = "Left" })
+P1.AddToggle({ Name = "God mode", Default = true })
+P1.AddToggle({ Name = "Solo session", Default = false })
+P1.AddToggle({ Name = "Anti headshot", Default = false })
+P1.AddToggle({ Name = "Heal behind cover", Default = true })
+P1.AddToggle({ Name = "Invisibility", Default = false })
+P1.AddToggle({ Name = "Server invisible", Default = true, Warn = true, Desc = "The feature may not be working properly, it is in beta testing." })
+P1.AddToggle({ Name = "Infinite stamina", Default = true })
+P1.AddToggle({ Name = "Infinite combat roll", Default = true })
+P1.AddToggle({ Name = "No combat stance", Default = false })
 
--- Middle column rows from reference
-aim:Section("ASSIST")
-aim:Toggle({ Name = "Multibone", Default = false })
-aim:Toggle({ Name = "Ignore flash", Default = false, More = true })
-aim:Toggle({ Name = "Ignore smoke", Default = true, More = true })
-aim:Toggle({ Name = "Burst mode", Default = false, More = true })
-aim:Toggle({ Name = "Crouch on shot", Default = true })
-aim:Colorpicker({
-    Name = "Accent color",
-    Default = Color3.fromRGB(148, 150, 255),
-    Callback = function(c) print("accent picked:", c) end,
-})
+local P2 = General.AddSection({ Title = "Movement options", Side = "Right" })
+P2.AddToggle({ Name = "Enable freecam", Default = true })
+P2.AddToggle({ Name = "Enable no-clip", Default = true })
+P2.AddLabel("Coordinates")
+P2.AddCoords({})
+P2.AddButton({ Name = "Teleport to coordinates" })
+P2.AddButton({ Name = "Set waypoint at coordinates" })
+P2.AddToggle({ Name = "TP to waypoint", Default = true })
+P2.AddDropdown({ Name = "Walking style", Options = { "Normal", "Sneak", "Drunk", "Injured" }, Default = "Normal" })
 
-trigger:Section("TRIGGER")
-trigger:Toggle({ Name = "Enabled", Default = false })
-trigger:Slider({ Name = "Reaction time", Min = 0, Max = 500, Default = 120 })
+local G2 = General.AddSection({ Title = "General", Side = "Left" })
+G2.AddToggle({ Name = "Suicide" , Default = true })
+G2.AddToggle({ Name = "Self revive", Default = true })
+G2.AddToggle({ Name = "Force crush", Default = true })
 
-configs:Section("CONFIGS")
-configs:Button({ Name = "Save config", Callback = function()
-    UI:SaveConfig("celestial_rivals")
-    Win:Notify("Config saved", "celestial_rivals.json")
-end })
-configs:Button({ Name = "Load config", Callback = function()
-    UI:LoadConfig("celestial_rivals")
-    Win:Notify("Config loaded", "restart toggles to apply")
-end })
-
-misc:Section("APP")
-misc:Label("RightShift toggles the UI. The gear button opens App settings.")
-misc:Button({ Name = "Unload UI", Callback = function() Win:Unload() end })
-
-print("Flags:", UI.Flags)
 return Win

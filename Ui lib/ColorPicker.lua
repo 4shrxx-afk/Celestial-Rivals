@@ -1,343 +1,228 @@
---[[
-    Celestial Rivals UI — ColorPicker.lua
-    EDIT ME: wheel size, slider count, hex behavior.
-    Reference look: 150px HSV wheel + white dot selector,
-    3 thin sliders (H rainbow / S / V), hex box + copy, "Set color" button,
-    floating tooltip card: [preview] "RGB: r g b" / "Save the selected color."
-
-    Math (HSV cylinder):
-      H = (pi - atan2(dY,dX)) / (2*pi)
-      S = dist(center,mouse) / radius
-      V from V-slider (0..1)
-]]
-
+local Theme = require(script.Parent:WaitForChild("Theme"))
+local Util = require(script.Parent:WaitForChild("Util"))
+local Icons = require(script.Parent:WaitForChild("Icons"))
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
 
--- BuildColorPicker(Window, Utils, ThemeData) -> api
--- Window must provide: Main (Frame), Theme (table), Accent (Color3),
---   _AccentUpdaters (array), SetAccent(color)
-return function(Window, Utils, ThemeData)
-    local Theme = Window.Theme
-    local WHEEL = ThemeData.WHEEL_ASSET
+local Colorpicker = {}
 
-    local modal = Utils.New("Frame", {
-        Name = "ColorPicker",
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new(0.5, 120, 0.5, 0),
-        Size = UDim2.new(0, 228, 0, 330),
-        BackgroundColor3 = Theme.Card,
-        BorderSizePixel = 0,
-        Visible = false,
-        ZIndex = 40,
-        Parent = Window.Main,
-    })
-    Utils.Corner(modal, ThemeData.Radius.Modal)
-    Utils.Hairline(Utils.Stroke(modal, Theme.Stroke, 0.92, 1), Theme)
-    Utils.Shadow(modal, 0.5, 40)
-
-    local wheel = Utils.New("ImageButton", {
-        Image = WHEEL,
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.5, 0, 0, 16),
-        Size = UDim2.new(0, 150, 0, 150),
-        ZIndex = 41,
-        AutoButtonColor = false,
-        Parent = modal,
-    })
-    Utils.Corner(wheel, 0, true)
-
-    local dot = Utils.New("Frame", {
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(0, 14, 0, 14),
-        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BorderSizePixel = 0,
-        ZIndex = 42,
-        Parent = wheel,
-    })
-    Utils.Corner(dot, 0, true)
-    Utils.Stroke(dot, Color3.fromRGB(0, 0, 0), 0.4, 2)
-
-    -- 3 sliders
-    local sliders = {}
-    local function makeSlider(idx, gradColor)
-        local bar = Utils.New("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0),
-            Position = UDim2.new(0.5, 0, 0, 176 + (idx - 1) * 22),
-            Size = UDim2.new(0, 180, 0, 6),
-            BackgroundColor3 = Color3.fromRGB(40, 40, 48),
-            BorderSizePixel = 0,
-            ZIndex = 41,
-            Parent = modal,
-        })
-        Utils.Corner(bar, 3)
-        local grad = Utils.New("UIGradient", {
-            Rotation = 0,
-            Color = gradColor,
-            Parent = bar,
-        })
-        local knob = Utils.New("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(0.5, 0, 0.5, 0),
-            Size = UDim2.new(0, 12, 0, 12),
-            BackgroundColor3 = Color3.fromRGB(237, 237, 239),
-            BorderSizePixel = 0,
-            ZIndex = 42,
-            Parent = bar,
-        })
-        Utils.Corner(knob, 0, true)
-        return { Bar = bar, Knob = knob, Grad = grad }
-    end
-
-    sliders.H = makeSlider(1, ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-        ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 255, 0)),
-        ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
-        ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0, 0, 255)),
-        ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0)),
-    }))
-    sliders.S = makeSlider(2, ColorSequence.new(Color3.fromRGB(255, 255, 255)))
-    sliders.V = makeSlider(3, ColorSequence.new(Color3.fromRGB(255, 255, 255)))
-
-    local hexBox = Utils.New("TextBox", {
-        Text = "#9496FF",
-        Font = ThemeData.Fonts.Regular,
-        TextSize = ThemeData.Sizes.Small,
-        TextColor3 = Theme.Text,
-        BackgroundColor3 = Theme.Row,
-        Position = UDim2.new(0, 24, 0, 248),
-        Size = UDim2.new(0, 140, 0, 28),
-        ZIndex = 41,
-        ClearTextOnFocus = false,
-        Parent = modal,
-    })
-    Utils.Corner(hexBox, 7)
-
-    local saveBtn = Utils.New("TextButton", {
-        Text = "Set color",
-        Font = ThemeData.Fonts.Medium,
-        TextSize = 13,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        BackgroundColor3 = Window.Accent,
-        Position = UDim2.new(0, 24, 0, 284),
-        Size = UDim2.new(0, 180, 0, 30),
-        ZIndex = 41,
-        AutoButtonColor = false,
-        Parent = modal,
-    })
-    Utils.Corner(saveBtn, 8)
-
-    -- Tooltip card
-    local tip = Utils.New("Frame", {
-        Name = "ColorTooltip",
-        Size = UDim2.new(0, 260, 0, 72),
-        BackgroundColor3 = Theme.Card,
-        BorderSizePixel = 0,
-        Visible = false,
-        ZIndex = 45,
-        Parent = Window.Main,
-    })
-    Utils.Corner(tip, ThemeData.Radius.Card)
-    Utils.Hairline(Utils.Stroke(tip, Theme.Stroke, 0.92, 1), Theme)
-    Utils.Shadow(tip, 0.5, 30)
-
-    local preview = Utils.New("Frame", {
-        Position = UDim2.new(0, 12, 0, 12),
-        Size = UDim2.new(0, 48, 0, 48),
-        BackgroundColor3 = Window.Accent,
-        BorderSizePixel = 0,
-        ZIndex = 46,
-        Parent = tip,
-    })
-    Utils.Corner(preview, 8)
-
-    local rgbLbl = Utils.New("TextLabel", {
-        Text = "RGB: 148 150 255",
-        Font = ThemeData.Fonts.Medium,
-        TextSize = 13,
-        TextColor3 = Theme.Text,
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 72, 0, 14),
-        Size = UDim2.new(1, -84, 0, 18),
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 46,
-        Parent = tip,
-    })
-    rgbLbl:SetAttribute("TRole", "Primary")
-
-    local subLbl = Utils.New("TextLabel", {
-        Text = "Save the selected color.",
-        Font = ThemeData.Fonts.Regular,
-        TextSize = ThemeData.Sizes.Small,
-        TextColor3 = Theme.TextDim,
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 72, 0, 34),
-        Size = UDim2.new(1, -84, 0, 16),
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 46,
-        Parent = tip,
-    })
-    subLbl:SetAttribute("TRole", "Dim")
-
-    -- state
-    local H, S, V = 0.66, 0.42, 1
-    local callback = nil
-    local api = {}
-
-    -- Click-catcher behind the modal: clicking anywhere outside closes it.
-    local zone = Utils.New("TextButton", {
-        Name = "ColorCloseZone",
-        Text = "",
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Visible = false,
-        ZIndex = 39,
-        AutoButtonColor = false,
-        Parent = Window.Main,
-    })
-    zone.MouseButton1Click:Connect(function() api.Close() end)
-
-    local function currentColor()
-        return Color3.fromHSV(H, S, V)
-    end
-
-    local function refresh()
-        local col = currentColor()
-        if wheel.AbsoluteSize.X > 0 then
-            local r = (wheel.AbsoluteSize.X / 2) * S
-            local ang = H * math.pi * 2
-            -- Inverse of the click math below (atan2): clicking the dot
-            -- returns the same H instead of landing half a wheel off.
-            dot.Position = UDim2.new(0.5, -math.cos(ang) * r, 0.5, math.sin(ang) * r)
-        end
-        sliders.H.Knob.Position = UDim2.new(H, 0, 0.5, 0)
-        sliders.S.Knob.Position = UDim2.new(S, 0, 0.5, 0)
-        sliders.V.Knob.Position = UDim2.new(V, 0, 0.5, 0)
-        sliders.S.Grad.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromHSV(H, 0, V)),
-            ColorSequenceKeypoint.new(1, Color3.fromHSV(H, 1, V)),
-        })
-        sliders.V.Grad.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
-            ColorSequenceKeypoint.new(1, Color3.fromHSV(H, S, 1)),
-        })
-        hexBox.Text = Utils.ToHex(col)
-        saveBtn.BackgroundColor3 = col
-        preview.BackgroundColor3 = col
-        local rr = math.floor(col.R * 255 + 0.5)
-        local gg = math.floor(col.G * 255 + 0.5)
-        local bb = math.floor(col.B * 255 + 0.5)
-        rgbLbl.Text = string.format("RGB: %d %d %d", rr, gg, bb)
-    end
-
-    local draggingWheel = false
-    local draggingSlider = nil
-
-    wheel.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            draggingWheel = true
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            draggingWheel = false
-            draggingSlider = nil
-        end
-    end)
-
-    RunService.RenderStepped:Connect(function()
-        if not modal.Visible or not draggingWheel then return end
-        local mouse = Players.LocalPlayer and Players.LocalPlayer:GetMouse()
-        if not mouse then return end
-        local c = wheel.AbsolutePosition + wheel.AbsoluteSize / 2
-        local d = Vector2.new(mouse.X, mouse.Y) - c
-        local radius = math.max(wheel.AbsoluteSize.X / 2, 1)
-        local mag = math.clamp(d.Magnitude / radius, 0, 1)
-        local h = (math.pi - math.atan2(d.Y, d.X)) / (math.pi * 2)
-        H = (h % 1 + 1) % 1
-        S = mag
-        refresh()
-    end)
-
-    for key, s in pairs(sliders) do
-        s.Bar.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-                draggingSlider = key
-                local rel = math.clamp((input.Position.X - s.Bar.AbsolutePosition.X)
-                    / math.max(s.Bar.AbsoluteSize.X, 1), 0, 1)
-                if key == "H" then H = rel elseif key == "S" then S = rel else V = rel end
-                refresh()
-            end
-        end)
-    end
-    UserInputService.InputChanged:Connect(function(input)
-        if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch) then
-            local s = sliders[draggingSlider]
-            if s then
-                local rel = math.clamp((input.Position.X - s.Bar.AbsolutePosition.X)
-                    / math.max(s.Bar.AbsoluteSize.X, 1), 0, 1)
-                if draggingSlider == "H" then H = rel
-                elseif draggingSlider == "S" then S = rel
-                else V = rel end
-                refresh()
-            end
-        end
-    end)
-
-    hexBox.FocusLost:Connect(function(enter)
-        if enter then
-            local c = Utils.FromHex(hexBox.Text)
-            if c then
-                H, S, V = Color3.toHSV(c)
-                refresh()
-            end
-        end
-    end)
-
-    saveBtn.MouseButton1Click:Connect(function()
-        local col = currentColor()
-        api.Close()
-        if callback then task.spawn(callback, col) end
-        Window:SetAccent(col)
-    end)
-
-    function api.Open(default, cb, anchorPos)
-        if default then
-            H, S, V = Color3.toHSV(default)
-        end
-        callback = cb
-        refresh()
-        modal.Position = anchorPos or UDim2.new(0.5, 120, 0.5, 0)
-        modal.Visible = true
-        -- Dock the tooltip directly under the picker so they read as one card.
-        tip.AnchorPoint = Vector2.new(0.5, 0)
-        tip.Position = UDim2.new(
-            modal.Position.X.Scale, modal.Position.X.Offset,
-            modal.Position.Y.Scale, modal.Position.Y.Offset + 175)
-        tip.Visible = true
-        zone.Visible = true
-        modal.Size = UDim2.new(0, 210, 0, 310)
-        Utils.Tween(modal, { Size = UDim2.new(0, 228, 0, 330) }, 0.18)
-    end
-    function api.Close()
-        modal.Visible = false
-        tip.Visible = false
-        zone.Visible = false
-    end
-    function api.Refresh() refresh() end
-    function api.Get() return currentColor() end
-    api.Frame = modal
-    api.Tooltip = tip
-
-    refresh()
-    return api
+local function hsvToRgb(h, s, v)
+	return Color3.fromHSV(h, s, v)
 end
+
+function Colorpicker.Inline(parent, opts, ctx)
+	opts = opts or {}
+	local default = opts.Default or Theme.Accent
+	local cb = opts.Callback or function() end
+	local h, s, v = default:ToHSV()
+	local alpha = 1
+
+	local holder = Util.New("Frame", {
+		Name = "Colorpicker",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 250),
+		LayoutOrder = opts.Order or 0,
+	}, parent)
+
+	local head = Util.New("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 22),
+	}, holder)
+	Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 14, 0, 0),
+		Size = UDim2.new(1, -60, 1, 0),
+		Text = opts.Name or "Menu accent",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 13,
+		Font = Theme.FontMed,
+		TextColor3 = Theme.Text,
+	}, head)
+	local preview = Util.New("Frame", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -14, 0.5, 0),
+		Size = UDim2.new(0, 16, 0, 16),
+		BackgroundColor3 = default,
+		BorderSizePixel = 0,
+	}, head)
+	Util.Corner(preview, 8)
+
+	local sv = Util.New("Frame", {
+		Position = UDim2.new(0, 14, 0, 30),
+		Size = UDim2.new(1, -46, 0, 150),
+		BackgroundColor3 = Color3.fromHSV(h, 1, 1),
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, holder)
+	Util.Corner(sv, 8)
+
+	local satGrad = Util.New("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255,255,255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(255,255,255)),
+		}),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Rotation = 0,
+	}, sv)
+	local valGradHolder = Util.New("Frame", {
+		BackgroundColor3 = Color3.fromRGB(0,0,0),
+		Size = UDim2.fromScale(1,1),
+		BackgroundTransparency = 0,
+		BorderSizePixel = 0,
+	}, sv)
+	local valGrad = Util.New("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(0,0,0)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0)),
+		}),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(1, 0),
+		}),
+		Rotation = 90,
+	}, valGradHolder)
+	valGradHolder.BackgroundTransparency = 0
+
+	local svDot = Util.New("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.new(0, 14, 0, 14),
+		BackgroundTransparency = 1,
+		ZIndex = 3,
+	}, sv)
+	local dotInner = Util.New("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 0),
+		Size = UDim2.new(0, 12, 0, 12),
+		BackgroundTransparency = 1,
+	}, svDot)
+	Util.Stroke(dotInner, Color3.fromRGB(255,255,255), 2)
+	Util.Corner(dotInner, 6)
+
+	local hue = Util.New("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 30),
+		Size = UDim2.new(0, 12, 0, 150),
+		BorderSizePixel = 0,
+		BackgroundColor3 = Color3.fromRGB(255,255,255),
+	}, holder)
+	Util.Corner(hue, 6)
+	local hueGrad = Util.New("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255,0,0)),
+			ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255,255,0)),
+			ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0,255,0)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0,255,255)),
+			ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0,0,255)),
+			ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255,0,255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(255,0,0)),
+		}),
+		Rotation = 90,
+	}, hue)
+	local hueDot = Util.New("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.new(0, 14, 0, 14),
+		BackgroundColor3 = Color3.fromRGB(255,255,255),
+		BorderSizePixel = 0,
+		ZIndex = 3,
+	}, hue)
+	Util.Corner(hueDot, 7)
+
+	local alphaBar = Util.New("Frame", {
+		Position = UDim2.new(0, 14, 0, 188),
+		Size = UDim2.new(1, -28, 0, 8),
+		BackgroundColor3 = Color3.fromRGB(220,220,230),
+		BorderSizePixel = 0,
+	}, holder)
+	Util.Corner(alphaBar, 4)
+	local alphaFill = Util.New("Frame", {
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundColor3 = Theme.Accent,
+		BorderSizePixel = 0,
+	}, alphaBar)
+	Util.Corner(alphaFill, 4)
+	local alphaKnob = Util.New("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(1, 0, 0.5, 0),
+		Size = UDim2.new(0, 14, 0, 14),
+		BackgroundColor3 = Color3.fromRGB(255,255,255),
+		BorderSizePixel = 0,
+	}, alphaBar)
+	Util.Corner(alphaKnob, 7)
+
+	local hexBox = Util.New("Frame", {
+		Position = UDim2.new(0, 14, 0, 204),
+		Size = UDim2.new(1, -28, 0, 32),
+		BackgroundColor3 = Theme.Input,
+		BorderSizePixel = 0,
+	}, holder)
+	Util.Corner(hexBox, 8)
+	local hexTb = Util.New("TextBox", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 10, 0, 0),
+		Size = UDim2.new(1, -40, 1, 0),
+		Text = "FF9C00FF",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 13,
+		Font = Theme.FontMed,
+		TextColor3 = Theme.Text,
+		ClearTextOnFocus = false,
+	}, hexBox)
+	local copyIco = Icons.Make(hexBox, "copy", 14, Theme.TextMute)
+	copyIco.AnchorPoint = Vector2.new(1, 0.5)
+	copyIco.Position = UDim2.new(1, -10, 0.5, 0)
+
+	local function refresh()
+		local c = Color3.fromHSV(h, s, v)
+		sv.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+		svDot.Position = UDim2.new(s, 0, 1 - v, 0)
+		hueDot.Position = UDim2.new(0.5, 0, h, 0)
+		preview.BackgroundColor3 = c
+		alphaFill.BackgroundColor3 = c
+		local r = math.floor(c.R * 255 + 0.5)
+		local g = math.floor(c.G * 255 + 0.5)
+		local b = math.floor(c.B * 255 + 0.5)
+		hexTb.Text = string.format("%02X%02X%02XFF", r, g, b)
+		pcall(cb, c)
+		if ctx and ctx.SetAccent then
+			ctx.SetAccent(c)
+		end
+	end
+
+	local dragSv, dragHue, dragAlpha = false, false, false
+	sv.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragSv = true end
+	end)
+	hue.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragHue = true end
+	end)
+	alphaBar.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragAlpha = true end
+	end)
+	UserInputService.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragSv, dragHue, dragAlpha = false, false, false
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(i)
+		if i.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+		if dragSv then
+			local p = Vector2.new(math.clamp((i.Position.X - sv.AbsolutePosition.X) / math.max(1, sv.AbsoluteSize.X), 0, 1),
+				math.clamp((i.Position.Y - sv.AbsolutePosition.Y) / math.max(1, sv.AbsoluteSize.Y), 0, 1))
+			s, v = p.X, 1 - p.Y
+			refresh()
+		elseif dragHue then
+			h = math.clamp((i.Position.Y - hue.AbsolutePosition.Y) / math.max(1, hue.AbsoluteSize.Y), 0, 0.999)
+			refresh()
+		elseif dragAlpha then
+			local a = math.clamp((i.Position.X - alphaBar.AbsolutePosition.X) / math.max(1, alphaBar.AbsoluteSize.X), 0, 1)
+			alphaKnob.Position = UDim2.new(a, 0, 0.5, 0)
+		end
+	end)
+
+	refresh()
+	return { Instance = holder, Get = function() return Color3.fromHSV(h, s, v) end }
+end
+
+return Colorpicker

@@ -1,0 +1,253 @@
+local Theme = require(script.Parent:WaitForChild("Theme"))
+local Util = require(script.Parent:WaitForChild("Util"))
+local Icons = require(script.Parent:WaitForChild("Icons"))
+
+local Keybind = {}
+
+function Keybind.Popup(layer, opts)
+	opts = opts or {}
+	local currentKey = opts.Key or "Mouse 5"
+	local currentMode = opts.Mode or "Toggle"
+	local currentVal = opts.Value == nil and true or opts.Value
+	local currentShow = opts.Show == nil and false or opts.Show
+	local done = opts.Callback or function() end
+
+	local pop = Util.New("Frame", {
+		Name = "KeybindPopup",
+		BackgroundColor3 = Color3.fromRGB(22, 22, 30),
+		Size = UDim2.new(0, 230, 0, 230),
+		BorderSizePixel = 0,
+		ZIndex = 80,
+	}, layer)
+	Util.Corner(pop, 12)
+	Util.Stroke(pop, Theme.Stroke, 1)
+	Util.Padding(pop, 12, 12, 12, 12)
+
+	if opts.Position then
+		pop.Position = opts.Position
+	else
+		pop.AnchorPoint = Vector2.new(0.5, 0.5)
+		pop.Position = UDim2.new(0.5, 0, 0.5, 0)
+	end
+
+	local keyBox = Util.New("TextButton", {
+		Size = UDim2.new(1, 0, 0, 44),
+		BackgroundColor3 = Theme.Input,
+		Text = "",
+		AutoButtonColor = false,
+	}, pop)
+	Util.Corner(keyBox, 8)
+	local kIco = Icons.Make(keyBox, "plus-circle", 16, Theme.Text)
+	kIco.Position = UDim2.new(0, 10, 0.5, 0)
+	kIco.AnchorPoint = Vector2.new(0, 0.5)
+	local keyLbl = Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 34, 0, 0),
+		Size = UDim2.new(1, -44, 1, 0),
+		Text = currentKey,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 13,
+		Font = Theme.FontMed,
+		TextColor3 = Theme.Text,
+	}, keyBox)
+
+	local listening = false
+	keyBox.MouseButton1Click:Connect(function()
+		listening = true
+		keyLbl.Text = "..."
+		keyLbl.TextColor3 = Theme.Accent
+	end)
+
+	game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
+		if listening then
+			if input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.MouseButton2
+				or input.UserInputType == Enum.UserInputType.MouseButton3 then
+				return
+			end
+			local name = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
+			if input.UserInputType == Enum.UserInputType.MouseButton4 then name = "Mouse4"
+			elseif input.UserInputType == Enum.UserInputType.MouseButton5 then name = "Mouse5" end
+			if input.KeyCode ~= Enum.KeyCode.Unknown then
+				currentKey = name
+			elseif name:find("Mouse") then
+				currentKey = name
+			end
+			if currentKey == "" then currentKey = "Mouse 5" end
+			keyLbl.Text = currentKey
+			keyLbl.TextColor3 = Theme.Text
+			listening = false
+			pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow })
+		end
+	end)
+
+	local modeRow = Util.New("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 0, 0, 56),
+		Size = UDim2.new(1, 0, 0, 44),
+	}, pop)
+
+	local tBtn = Util.New("TextButton", {
+		Position = UDim2.new(0, 0, 0, 0),
+		Size = UDim2.new(0.5, -4, 1, 0),
+		BackgroundColor3 = currentMode == "Toggle" and Theme.Accent or Theme.Input,
+		Text = "Toggle",
+		TextSize = 13,
+		Font = Theme.FontMed,
+		TextColor3 = currentMode == "Toggle" and Color3.fromRGB(20, 20, 30) or Theme.TextDim,
+		AutoButtonColor = false,
+	}, modeRow)
+	Util.Corner(tBtn, 8)
+
+	local hBtn = Util.New("TextButton", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 0),
+		Size = UDim2.new(0.5, -4, 1, 0),
+		BackgroundColor3 = currentMode == "Hold" and Theme.Accent or Theme.Input,
+		Text = "Hold",
+		TextSize = 13,
+		Font = Theme.FontMed,
+		TextColor3 = currentMode == "Hold" and Color3.fromRGB(20, 20, 30) or Theme.TextDim,
+		AutoButtonColor = false,
+	}, modeRow)
+	Util.Corner(hBtn, 8)
+
+	local function refreshMode()
+		tBtn.BackgroundColor3 = currentMode == "Toggle" and Theme.Accent or Theme.Input
+		hBtn.BackgroundColor3 = currentMode == "Hold" and Theme.Accent or Theme.Input
+		tBtn.TextColor3 = currentMode == "Toggle" and Color3.fromRGB(20, 20, 30) or Theme.TextDim
+		hBtn.TextColor3 = currentMode == "Hold" and Color3.fromRGB(20, 20, 30) or Theme.TextDim
+	end
+
+	tBtn.MouseButton1Click:Connect(function() currentMode = "Toggle" refreshMode() pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow }) end)
+	hBtn.MouseButton1Click:Connect(function() currentMode = "Hold" refreshMode() pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow }) end)
+
+	local function checkRow(y, label, val, onFlip)
+		local r = Util.New("Frame", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 0, 0, y),
+			Size = UDim2.new(1, 0, 0, 30),
+		}, pop)
+		Util.New("TextLabel", {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -40, 1, 0),
+			Text = label,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 13,
+			Font = Theme.FontMed,
+			TextColor3 = Theme.Text,
+		}, r)
+		local b = Util.New("TextButton", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, 0, 0.5, 0),
+			Size = UDim2.new(0, 20, 0, 20),
+			BackgroundColor3 = val and Theme.Accent or Theme.CheckOff,
+			Text = "",
+			AutoButtonColor = false,
+		}, r)
+		Util.Corner(b, 5)
+		local ck = Icons.Make(b, "check", 13, Color3.fromRGB(18, 18, 28))
+		ck.AnchorPoint = Vector2.new(0.5, 0.5)
+		ck.Position = UDim2.new(0.5, 0, 0.5, 0)
+		ck.ImageTransparency = val and 0 or 1
+		b.MouseButton1Click:Connect(function()
+			val = not val
+			b.BackgroundColor3 = val and Theme.Accent or Theme.CheckOff
+			ck.ImageTransparency = val and 0 or 1
+			onFlip(val)
+		end)
+		return r
+	end
+
+	checkRow(112, "Value", currentVal, function(v) currentVal = v pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow }) end)
+	checkRow(142, "Show in binds", currentShow, function(v) currentShow = v pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow }) end)
+
+	return {
+		Frame = pop,
+		Close = function() pop:Destroy() end,
+		Get = function() return { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow } end,
+	}
+end
+
+function Keybind.HotkeyTable(layer, rows)
+	local pop = Util.New("Frame", {
+		Name = "HotkeysTable",
+		BackgroundColor3 = Color3.fromRGB(22, 22, 30),
+		Size = UDim2.new(0, 480, 0, 32 + #rows * 38 + 8),
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 120),
+		ZIndex = 70,
+	}, layer)
+	Util.Corner(pop, 12)
+	Util.Stroke(pop, Theme.Stroke, 1)
+	Util.Padding(pop, 12, 14, 12, 14)
+
+	local head = Util.New("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 24),
+	}, pop)
+	local function hcell(x, w, t)
+		Util.New("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, x, 0, 0),
+			Size = UDim2.new(0, w, 1, 0),
+			Text = t,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 13,
+			Font = Theme.FontMed,
+			TextColor3 = Theme.Text,
+		}, head)
+	end
+	hcell(0, 160, "Function")
+	hcell(170, 120, "Hotkey")
+	hcell(300, 100, "Status")
+
+	for i, r in ipairs(rows) do
+		local row = Util.New("Frame", {
+			BackgroundColor3 = i % 2 == 0 and Color3.fromRGB(26, 26, 36) or Color3.fromRGB(22, 22, 30),
+			Size = UDim2.new(1, 0, 0, 36),
+			BorderSizePixel = 0,
+		}, pop)
+		Util.Corner(row, 6)
+		row.LayoutOrder = i
+		Util.New("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 8, 0, 0),
+			Size = UDim2.new(0, 160, 1, 0),
+			Text = r[1],
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 13,
+			Font = Theme.FontReg,
+			TextColor3 = Theme.Text,
+		}, row)
+		Util.New("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 170, 0, 0),
+			Size = UDim2.new(0, 120, 1, 0),
+			Text = r[2],
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 13,
+			Font = Theme.FontReg,
+			TextColor3 = Theme.Text,
+		}, row)
+		Util.New("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 300, 0, 0),
+			Size = UDim2.new(0, 100, 1, 0),
+			Text = r[3],
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 13,
+			Font = Theme.FontReg,
+			TextColor3 = Theme.Text,
+		}, row)
+		local dots = Icons.Make(row, "more-horizontal", 16, Theme.Text)
+		dots.AnchorPoint = Vector2.new(1, 0.5)
+		dots.Position = UDim2.new(1, -8, 0.5, 0)
+	end
+
+	Util.List(pop, Enum.FillDirection.Vertical, 2)
+	return { Frame = pop, Close = function() pop:Destroy() end }
+end
+
+return Keybind

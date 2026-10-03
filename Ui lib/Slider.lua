@@ -1,288 +1,143 @@
---[[
-    Celestial Rivals UI — Slider.lua
-    EDIT ME: track height, knob size, value formatting.
-    Provides:
-      CreateSlider(Tab, Utils, ThemeData, Library, opts)
-        opts: { Name, Min, Max, Default, Decimals, Suffix, Callback }
-        Reference: 4px track, accent fill, 14px white knob, value top-right.
-      CreateRange(Tab, Utils, ThemeData, Library, opts)
-        opts: { Name, Min, Max, DefaultMin, DefaultMax, Callback }
-        Reference: "First bullet delay   200 <-> 700" dual-knob slider.
-]]
-
+local Theme = require(script.Parent:WaitForChild("Theme"))
+local Util = require(script.Parent:WaitForChild("Util"))
+local Icons = require(script.Parent:WaitForChild("Icons"))
 local UserInputService = game:GetService("UserInputService")
 
 local Slider = {}
 
-function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
-    t = t or {}
-    local Window = Tab.Window
-    local rowName = t.Name or "Slider"
-    local min, max = t.Min or 0, t.Max or 100
-    local val = (t.Default ~= nil) and t.Default or ((min + max) / 2)
-    local decimals = t.Decimals or ((max - min) < 20 and 1 or 0)
-    local suffix = t.Suffix or ""
-    Library.Flags[rowName] = val
+function Slider.Create(parent, opts, ctx)
+	opts = opts or {}
+	local name = opts.Name or "Slider"
+	local min = opts.Min or 0
+	local max = opts.Max or 100
+	local default = opts.Default or ((min + max) / 2)
+	local suffix = opts.Suffix or ""
+	local cb = opts.Callback or function() end
+	local val = math.clamp(default, min, max)
 
-    local row, title = Tab:_Row(rowName, 56)
-    -- Lock the title to the top line so it never sinks toward the track.
-    title.Position = UDim2.new(0, 14, 0, 8)
-    title.Size = UDim2.new(1, -120, 0, 16)
+	local holder = Util.New("Frame", {
+		Name = "Slider_" .. name,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 48),
+		LayoutOrder = opts.Order or 0,
+	}, parent)
 
-    local valLbl = Utils.New("TextLabel", {
-        Text = tostring(val),
-        Font = ThemeData.Fonts.Regular,
-        TextSize = ThemeData.Sizes.Small,
-        TextColor3 = Window.Theme.TextDim,
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, -12, 0, 8),
-        Size = UDim2.new(0, 90, 0, 16),
-        TextXAlignment = Enum.TextXAlignment.Right,
-        Parent = row,
-    })
-    valLbl:SetAttribute("TRole", "Dim")
+	local lbl = Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 14, 0, 6),
+		Size = UDim2.new(0.5, 0, 0, 18),
+		Text = name,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 13,
+		Font = Theme.FontReg,
+		TextColor3 = Theme.TextMute,
+	}, holder)
 
-    local function fmt(v)
-        if decimals > 0 then
-            return string.format("%." .. decimals .. "f", v) .. suffix
-        else
-            return tostring(math.floor(v + 0.5)) .. suffix
-        end
-    end
-    valLbl.Text = fmt(val)
+	local vallbl = Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 6),
+		Size = UDim2.new(0.5, 0, 0, 18),
+		Text = tostring(math.floor(val * 100) / 100) .. suffix,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextSize = 13,
+		Font = Theme.FontMed,
+		TextColor3 = Theme.TextDim,
+	}, holder)
 
-    local track = Utils.New("Frame", {
-        AnchorPoint = Vector2.new(0, 1),
-        Position = UDim2.new(0, 14, 1, -12),
-        Size = UDim2.new(1, -28, 0, 6),
-        BackgroundColor3 = Window.Theme.Track,
-        BorderSizePixel = 0,
-        Parent = row,
-    })
-    Utils.Corner(track, ThemeData.Radius.Track)
+	local track = Util.New("Frame", {
+		Name = "Track",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 30),
+		Size = UDim2.new(1, -28, 0, 6),
+		BackgroundColor3 = Theme.Track,
+		BorderSizePixel = 0,
+	}, holder)
+	Util.Corner(track, 3)
 
-    local fill = Utils.New("Frame", {
-        Size = UDim2.new((val - min) / math.max(max - min, 0.001), 0, 1, 0),
-        BackgroundColor3 = Window.Accent,
-        BorderSizePixel = 0,
-        Parent = track,
-    })
-    Utils.Corner(fill, ThemeData.Radius.Track)
+	local fill = Util.New("Frame", {
+		BackgroundColor3 = Theme.Accent,
+		BorderSizePixel = 0,
+		Size = UDim2.new(0, 0, 1, 0),
+	}, track)
+	Util.Corner(fill, 3)
 
-    local knob = Utils.New("Frame", {
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new((val - min) / math.max(max - min, 0.001), 0, 0.5, 0),
-        Size = UDim2.new(0, 16, 0, 16),
-        BackgroundColor3 = Color3.fromRGB(237, 237, 239),
-        BorderSizePixel = 0,
-        Parent = track,
-    })
-    Utils.Corner(knob, 0, true)
-    -- Soft accent ring shown on hover/drag (modern slider feel).
-    local ring = Utils.Stroke(knob, Window.Accent, 0.55, 2)
-    table.insert(Window._AccentUpdaters, function(c)
-        fill.BackgroundColor3 = c
-        ring.Color = c
-    end)
-    valLbl:SetAttribute("TRole", "Dim")
+	local knob = Util.New("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0, 0, 0.5, 0),
+		Size = UDim2.new(0, 12, 0, 12),
+		BackgroundColor3 = Color3.fromRGB(255,255,255),
+		BorderSizePixel = 0,
+		Visible = false,
+	}, track)
+	Util.Corner(knob, 6)
 
-    local dragging = false
-    local function paintKnob()
-        local target = dragging and 19 or 16
-        Utils.Tween(knob, { Size = UDim2.new(0, target, 0, target) }, 0.12)
-        ring.Transparency = dragging and 0 or 0.55
-        valLbl.TextColor3 = dragging and Window.Accent or Window.Theme.TextDim
-    end
-    knob.MouseEnter:Connect(function()
-        if dragging then return end
-        Utils.Tween(knob, { Size = UDim2.new(0, 18, 0, 18) }, 0.1)
-        ring.Transparency = 0.2
-    end)
-    knob.MouseLeave:Connect(function()
-        if dragging then return end
-        Utils.Tween(knob, { Size = UDim2.new(0, 14, 0, 14) }, 0.1)
-        ring.Transparency = 0.55
-    end)
-    local function setFromX(x, animate)
-        local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
-        val = min + rel * (max - min)
-        if decimals == 0 then val = math.floor(val + 0.5) end
-        Library.Flags[rowName] = val
-        valLbl.Text = fmt(val)
-        if animate then
-            Utils.Tween(fill, { Size = UDim2.new(rel, 0, 1, 0) }, 0.1)
-            Utils.Tween(knob, { Position = UDim2.new(rel, 0, 0.5, 0) }, 0.1)
-        else
-            fill.Size = UDim2.new(rel, 0, 1, 0)
-            knob.Position = UDim2.new(rel, 0, 0.5, 0)
-        end
-        if t.Callback then task.spawn(t.Callback, val) end
-    end
-    track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            paintKnob()
-            setFromX(input.Position.X, true)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-            paintKnob()
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch) then
-            setFromX(input.Position.X)
-        end
-    end)
+	local function pct()
+		return (val - min) / math.max(0.0001, (max - min))
+	end
 
-    return {
-        Set = function(v)
-            v = math.clamp(v, min, max)
-            val = v
-            Library.Flags[rowName] = v
-            local rel = (v - min) / math.max(max - min, 0.001)
-            valLbl.Text = fmt(v)
-            Utils.Tween(fill, { Size = UDim2.new(rel, 0, 1, 0) }, 0.12)
-            Utils.Tween(knob, { Position = UDim2.new(rel, 0, 0.5, 0) }, 0.12)
-        end,
-        Get = function() return val end,
-        Row = row,
-    }
-end
+	local function refresh()
+		local p = pct()
+		fill.Size = UDim2.new(p, 0, 1, 0)
+		knob.Position = UDim2.new(p, 0, 0.5, 0)
+		vallbl.Text = tostring(math.floor(val * 100) / 100) .. suffix
+	end
 
--- Range value separator is plain ASCII (" - ") so rows need no font glyphs.
-local function joinRange(x, y)
-    return math.floor(x + 0.5) .. " - " .. math.floor(y + 0.5)
-end
+	local dragging = false
+	local function setFromX(x)
+		local absPos = track.AbsolutePosition.X
+		local absSize = math.max(1, track.AbsoluteSize.X)
+		local a = math.clamp((x - absPos) / absSize, 0, 1)
+		val = min + (max - min) * a
+		if opts.Step then
+			val = math.floor(val / opts.Step + 0.5) * opts.Step
+		end
+		if opts.Decimals then
+			local m = 10 ^ opts.Decimals
+			val = math.floor(val * m + 0.5) / m
+		end
+		refresh()
+		pcall(cb, val)
+	end
 
-function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
-    t = t or {}
-    local Window = Tab.Window
-    local rowName = t.Name or "Range"
-    local min, max = t.Min or 0, t.Max or 1000
-    local a, b = t.DefaultMin or 200, t.DefaultMax or 700
-    Library.Flags[rowName] = { a, b }
+	track.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			knob.Visible = true
+			setFromX(input.Position.X)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+			knob.Visible = false
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			setFromX(input.Position.X)
+		end
+	end)
 
-    local row, title = Tab:_Row(rowName, 60)
-    -- Lock the title to the top line so it never sinks toward the track.
-    title.Position = UDim2.new(0, 14, 0, 8)
-    title.Size = UDim2.new(1, -160, 0, 16)
+	holder.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			knob.Visible = true
+		end
+	end)
 
-    local valLbl = Utils.New("TextLabel", {
-        Text = joinRange(a, b),
-        Font = ThemeData.Fonts.Regular,
-        TextSize = ThemeData.Sizes.Small,
-        TextColor3 = Window.Theme.TextDim,
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, -12, 0, 8),
-        Size = UDim2.new(0, 140, 0, 16),
-        TextXAlignment = Enum.TextXAlignment.Right,
-        Parent = row,
-    })
-    valLbl:SetAttribute("TRole", "Dim")
+	refresh()
 
-    local track = Utils.New("Frame", {
-        AnchorPoint = Vector2.new(0, 1),
-        Position = UDim2.new(0, 14, 1, -12),
-        Size = UDim2.new(1, -28, 0, 6),
-        BackgroundColor3 = Window.Theme.Track,
-        BorderSizePixel = 0,
-        Parent = row,
-    })
-    Utils.Corner(track, ThemeData.Radius.Track)
-
-    local fill = Utils.New("Frame", {
-        BackgroundColor3 = Window.Accent,
-        BorderSizePixel = 0,
-        Parent = track,
-    })
-    Utils.Corner(fill, ThemeData.Radius.Track)
-
-    local kA = Utils.New("Frame", {
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.new(0, 16, 0, 16),
-        BackgroundColor3 = Color3.fromRGB(200, 200, 208),
-        BorderSizePixel = 0,
-        Parent = track,
-    })
-    Utils.Corner(kA, 0, true)
-
-    local kB = Utils.New("Frame", {
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.new(0, 16, 0, 16),
-        BackgroundColor3 = Color3.fromRGB(237, 237, 239),
-        BorderSizePixel = 0,
-        Parent = track,
-    })
-    Utils.Corner(kB, 0, true)
-    table.insert(Window._AccentUpdaters, function(c) fill.BackgroundColor3 = c end)
-    valLbl:SetAttribute("TRole", "Dim")
-
-    local dragWhich = nil
-    local function paintRange()
-        local s = dragWhich and 18 or 16
-        kA.Size = UDim2.new(0, s, 0, s)
-        kB.Size = UDim2.new(0, s, 0, s)
-        valLbl.TextColor3 = dragWhich and Window.Accent or Window.Theme.TextDim
-    end
-
-    local function refresh(fire)
-        local ra, rb = (a - min) / (max - min), (b - min) / (max - min)
-        kA.Position = UDim2.new(ra, 0, 0.5, 0)
-        kB.Position = UDim2.new(rb, 0, 0.5, 0)
-        fill.Position = UDim2.new(ra, 0, 0, 0)
-        fill.Size = UDim2.new(math.max(rb - ra, 0.01), 0, 1, 0)
-        valLbl.Text = joinRange(a, b)
-        Library.Flags[rowName] = { a, b }
-        if fire ~= false and t.Callback then
-            task.spawn(t.Callback, a, b)
-        end
-    end
-    refresh(false)
-
-    track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            local x = input.Position.X
-            local pa = track.AbsolutePosition.X + ((a - min) / (max - min)) * track.AbsoluteSize.X
-            local pb = track.AbsolutePosition.X + ((b - min) / (max - min)) * track.AbsoluteSize.X
-                    dragWhich = (math.abs(x - pa) < math.abs(x - pb)) and "A" or "B"
-                    paintRange()
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragWhich = nil
-            paintRange()
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragWhich and (input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch) then
-            local rel = math.clamp((input.Position.X - track.AbsolutePosition.X)
-                / math.max(track.AbsoluteSize.X, 1), 0, 1)
-            local v = min + rel * (max - min)
-            if dragWhich == "A" then a = math.min(v, b - 1)
-            else b = math.max(v, a + 1) end
-            refresh(true)
-        end
-    end)
-
-    return { Get = function() return a, b end, Row = row }
+	local api = { Instance = holder }
+	function api.Set(v, silent)
+		val = math.clamp(v, min, max)
+		refresh()
+		if not silent then pcall(cb, val) end
+	end
+	function api.Get() return val end
+	api._SetAccent = function(a) fill.BackgroundColor3 = a end
+	if ctx and ctx.BindAccent then ctx.BindAccent(api._SetAccent) end
+	return api
 end
 
 return Slider

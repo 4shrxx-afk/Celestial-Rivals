@@ -1,132 +1,160 @@
---[[
-    Celestial Rivals UI — Dropdown.lua
-    EDIT ME: option height, expanded animation.
-    Usage: Tab:Dropdown({ Name = "Recoil control", Options = {...}, Default = ..., Callback = fn })
-    Reference: 36px header + Lucide chevron, expands to N*30px list,
-    ClipsDescendants for rounding.
-]]
+local Theme = require(script.Parent:WaitForChild("Theme"))
+local Util = require(script.Parent:WaitForChild("Util"))
+local Icons = require(script.Parent:WaitForChild("Icons"))
 
--- CreateDropdown(Tab, Utils, ThemeData, Library, opts)
-return function(Tab, Utils, ThemeData, Library, t)
-    t = t or {}
-    local Window = Tab.Window
-    local Icons = Window._Icons
-    local rowName = t.Name or "Dropdown"
-    local options = t.Options or { "Option 1", "Option 2" }
-    local selected = t.Default or options[1]
-    Library.Flags[rowName] = selected
+local Dropdown = {}
 
-    local row, title = Tab:_Row(rowName, 36)
-    row.ClipsDescendants = true
-    -- Lock the header text to the top 36px so it never drifts into the list.
-    title.Position = UDim2.new(0, 14, 0, 0)
-    title.Size = UDim2.new(1, -200, 0, 36)
+function Dropdown.Create(parent, opts, ctx)
+	opts = opts or {}
+	local name = opts.Name or opts.Title
+	local options = opts.Options or opts.Items or {"Normal"}
+	local default = opts.Default or options[1]
+	local cb = opts.Callback or function() end
+	local current = default
 
-    local chev = Icons.New("chevron-down", 14, Window.Theme.TextDim, {
-        AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -12, 0, 18),
-        Parent = row,
-    })
-    chev:SetAttribute("IRole", "Dim")
+	local holder = Util.New("Frame", {
+		Name = "Dropdown",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, name and 62 or 38),
+		LayoutOrder = opts.Order or 0,
+	}, parent)
 
-    local selLbl = Utils.New("TextLabel", {
-        Text = tostring(selected),
-        Font = ThemeData.Fonts.Regular,
-        TextSize = ThemeData.Sizes.Small,
-        TextColor3 = Window.Theme.TextDim,
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -34, 0, 18),
-        Size = UDim2.new(0, 150, 0, 18),
-        TextXAlignment = Enum.TextXAlignment.Right,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        Parent = row,
-    })
-    selLbl:SetAttribute("TRole", "Dim")
+	if name then
+		Util.New("TextLabel", {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0, 14, 0, 0),
+			Size = UDim2.new(1, -28, 0, 20),
+			Text = name,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 13,
+			Font = Theme.FontReg,
+			TextColor3 = Theme.TextMute,
+		}, holder)
+	end
 
-    local open = false
-    local listH = #options * 30
+	local btn = Util.New("TextButton", {
+		Position = UDim2.new(0, 14, 0, name and 22 or 0),
+		Size = UDim2.new(1, -28, 0, 36),
+		BackgroundColor3 = Theme.Input,
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Text = "",
+	}, holder)
+	Util.Corner(btn, 8)
 
-    local clickArea = Utils.New("TextButton", {
-        Text = "",
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, 36),
-        Parent = row,
-    })
+	local txt = Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 12, 0, 0),
+		Size = UDim2.new(1, -36, 1, 0),
+		Text = tostring(current),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 13,
+		Font = Theme.FontMed,
+		TextColor3 = Theme.TextDim,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	}, btn)
 
-    local function setH(h)
-        Utils.Tween(row, { Size = UDim2.new(1, -4, 0, h) }, 0.2)
-    end
+	local chev = Icons.Make(btn, "chevron-down", 16, Theme.TextMute)
+	chev.AnchorPoint = Vector2.new(1, 0.5)
+	chev.Position = UDim2.new(1, -10, 0.5, 0)
 
-    local optBtns = {}
-    local optTicks = {}
-    for i, opt in ipairs(options) do
-        local isSel = (opt == selected)
-        local ob = Utils.New("TextButton", {
-            Text = tostring(opt),
-            Font = ThemeData.Fonts.Regular,
-            TextSize = ThemeData.Sizes.Small,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextColor3 = isSel and Color3.fromRGB(255, 255, 255) or Window.Theme.TextDim,
-            BackgroundColor3 = Window.Accent,
-            BackgroundTransparency = isSel and 0.85 or 1,
-            Position = UDim2.new(0, 6, 0, 36 + (i - 1) * 30),
-            Size = UDim2.new(1, -12, 0, 28),
-            AutoButtonColor = false,
-            Parent = row,
-        })
-        Utils.Corner(ob, 6)
-        Utils.Pad(ob, 12, 0, 0, 0)
-        local tick = Icons.New("check", 12, Color3.fromRGB(255, 255, 255), {
-            AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -10, 0.5, 0),
-            Visible = isSel,
-            Parent = ob,
-        })
-        optTicks[i] = tick
-        ob.MouseEnter:Connect(function()
-            if selected ~= opt then
-                ob.BackgroundColor3 = Window.Theme.RowHover
-                ob.BackgroundTransparency = 0
-            end
-        end)
-        ob.MouseLeave:Connect(function()
-            if selected ~= opt then
-                ob.BackgroundTransparency = 1
-            end
-        end)
-        ob.MouseButton1Click:Connect(function()
-            selected = opt
-            Library.Flags[rowName] = opt
-            selLbl.Text = tostring(opt)
-            for j, o2 in ipairs(optBtns) do
-                local on = (options[j] == opt)
-                o2.BackgroundTransparency = on and 0.85 or 1
-                if on then o2.BackgroundColor3 = Window.Accent end
-                o2.TextColor3 = on and Color3.fromRGB(255, 255, 255) or Window.Theme.TextDim
-                optTicks[j].Visible = on
-            end
-            open = false
-            Utils.Tween(chev, { Rotation = 0 }, 0.2)
-            setH(36)
-            if t.Callback then task.spawn(t.Callback, opt) end
-        end)
-        table.insert(optBtns, ob)
-    end
+	local listFrame
+	local open = false
 
-    clickArea.MouseButton1Click:Connect(function()
-        open = not open
-        Utils.Tween(chev, { Rotation = open and 180 or 0 }, 0.2)
-        setH(open and (36 + listH + 8) or 36)
-    end)
+	local function close()
+		open = false
+		chev.Image = Icons.Get("chevron-down")
+		if listFrame then listFrame:Destroy() listFrame = nil end
+	end
 
-    return {
-        Set = function(v)
-            selected = v
-            Library.Flags[rowName] = v
-            selLbl.Text = tostring(v)
-        end,
-        Get = function() return selected end,
-        Row = row,
-    }
+	local function buildList()
+		if listFrame then listFrame:Destroy() end
+		local gui = btn:FindFirstAncestorOfClass("ScreenGui")
+		local layer = gui and gui:FindFirstChild("EvenPopups") or parent
+		listFrame = Util.New("Frame", {
+			Name = "DDList",
+			BackgroundColor3 = Color3.fromRGB(24, 24, 33),
+			BorderSizePixel = 0,
+			Size = UDim2.new(0, math.max(180, btn.AbsoluteSize.X), 0, math.min(#options, 5) * 36 + 8),
+			ZIndex = 50,
+		}, layer)
+		Util.Corner(listFrame, 8)
+		Util.Stroke(listFrame, Theme.Stroke, 1)
+		Util.Padding(listFrame, 4, 4, 4, 4)
+		Util.List(listFrame, Enum.FillDirection.Vertical, 2)
+
+		local abs = btn.AbsolutePosition
+		local guiAbs = gui and gui.AbsolutePosition or Vector2.new(0, 0)
+		if gui then
+			listFrame.Position = UDim2.new(0, abs.X - guiAbs.X, 0, abs.Y - guiAbs.Y + 40)
+		else
+			listFrame.Position = UDim2.new(0, 0, 0, 40)
+		end
+
+		for _, opt in ipairs(options) do
+			local isSel = tostring(opt) == tostring(current)
+			local r = Util.New("TextButton", {
+				BackgroundColor3 = isSel and Color3.fromRGB(32, 32, 44) or Color3.fromRGB(24, 24, 33),
+				Size = UDim2.new(1, 0, 0, 34),
+				Text = "",
+				AutoButtonColor = false,
+				ZIndex = 51,
+			}, listFrame)
+			Util.Corner(r, 6)
+			if isSel then
+				local ck = Icons.Make(r, "check", 14, Theme.Text)
+				ck.Position = UDim2.new(0, 10, 0.5, 0)
+				ck.AnchorPoint = Vector2.new(0, 0.5)
+				ck.ZIndex = 52
+			end
+			Util.New("TextLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, isSel and 32 or 12, 0, 0),
+				Size = UDim2.new(1, -40, 1, 0),
+				Text = tostring(opt),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextSize = 13,
+				Font = Theme.FontMed,
+				TextColor3 = isSel and Theme.Text or Theme.TextDim,
+				ZIndex = 52,
+			}, r)
+			r.MouseButton1Click:Connect(function()
+				current = opt
+				txt.Text = tostring(opt)
+				close()
+				pcall(cb, opt)
+			end)
+		end
+	end
+
+	btn.MouseButton1Click:Connect(function()
+		open = not open
+		if open then
+			chev.Image = Icons.Get("chevron-up")
+			buildList()
+		else
+			close()
+		end
+	end)
+
+	game:GetService("UserInputService").InputBegan:Connect(function(input)
+		if open and input.UserInputType == Enum.UserInputType.MouseButton1 and listFrame then
+			local p = input.Position
+			local aPos = listFrame.AbsolutePosition
+			local aSize = listFrame.AbsoluteSize
+			local bPos = btn.AbsolutePosition
+			local bSize = btn.AbsoluteSize
+			local inList = p.X >= aPos.X and p.X <= aPos.X + aSize.X and p.Y >= aPos.Y and p.Y <= aPos.Y + aSize.Y
+			local inBtn = p.X >= bPos.X and p.X <= bPos.X + bSize.X and p.Y >= bPos.Y and p.Y <= bPos.Y + bSize.Y
+			if not inList and not inBtn then close() end
+		end
+	end)
+
+	local api = { Instance = holder }
+	function api.Set(v) current = v txt.Text = tostring(v) end
+	function api.Get() return current end
+	function api.SetOptions(o) options = o end
+	return api
 end
+
+return Dropdown

@@ -1,152 +1,167 @@
---[[
-    Celestial Rivals UI — Icons.lua
-    EDIT ME: add or override icon assets here.
-    Real Lucide icons (https://lucide.dev). Asset IDs vendored from the
-    Footagesus/Icons lucide pack (direct per-icon rbxassetid, no spritesheets,
-    no runtime HTTP fetch). Lean: only the icons the lib actually uses.
-
-    Usage:
-      local img = Icons.New("search", 16, Theme.TextDim, { Parent = box })
-      img:SetAttribute("IRole", "Dim") -- auto-recolored by Window:SetTheme
-      Icons.Apply(existingLabel, "check", Color3.fromRGB(255,255,255))
-
-    IRole values: "Primary" | "Dim" | "Dark" (same palette as text).
-]]
-
-local ContentProvider = game:GetService("ContentProvider")
-
-local Icons = {}
-
-Icons.IDS = {
-    ["search"]             = "rbxassetid://121018724060431",
-    ["crosshair"]          = "rbxassetid://134242818164054",
-    ["target"]             = "rbxassetid://87563802520297",
-    ["zap"]                = "rbxassetid://130551565616516",
-    ["rotate-ccw"]         = "rbxassetid://110116685948665",
-    ["users"]              = "rbxassetid://115398113982385",
-    ["user"]               = "rbxassetid://81589895647169",
-    ["user-round"]         = "rbxassetid://136485052187963",
-    ["globe"]              = "rbxassetid://114238209622913",
-    ["list"]               = "rbxassetid://113179976918783",
-    ["archive"]            = "rbxassetid://122180020814574",
-    ["save"]               = "rbxassetid://126116963775616",
-    ["folder"]             = "rbxassetid://80846616596607",
-    ["settings"]           = "rbxassetid://80758916183665",
-    ["settings-2"]         = "rbxassetid://135684703553372",
-    ["sliders-horizontal"] = "rbxassetid://85538382643347",
-    ["cog"]                = "rbxassetid://116544501716299",
-    ["sun"]                = "rbxassetid://110150589884127",
-    ["moon"]               = "rbxassetid://83380517901735",
-    ["moon-star"]          = "rbxassetid://82782200506348",
-    ["check"]              = "rbxassetid://93898873302694",
-    ["x"]                  = "rbxassetid://110786993356448",
-    ["plus"]               = "rbxassetid://111774323017047",
-    ["minus"]              = "rbxassetid://118026365011536",
-    ["chevron-down"]       = "rbxassetid://134243273101015",
-    ["chevron-up"]         = "rbxassetid://122444883127455",
-    ["chevron-right"]      = "rbxassetid://92473583511724",
-    ["ellipsis"]           = "rbxassetid://140019550645825",
-    ["ellipsis-vertical"]  = "rbxassetid://117978708573781",
-    ["info"]               = "rbxassetid://124560466474914",
-    ["copy"]               = "rbxassetid://78979572434545",
-    ["palette"]            = "rbxassetid://86350350950064",
-    ["languages"]          = "rbxassetid://90816903776498",
-    ["eye"]                = "rbxassetid://100033680381365",
-    ["eye-off"]            = "rbxassetid://135928786788378",
-    ["gauge"]              = "rbxassetid://110273524101447",
-    ["trash-2"]            = "rbxassetid://109843431391323",
-    ["download"]           = "rbxassetid://134814648082393",
-    ["upload"]             = "rbxassetid://138212042425501",
-    ["scaling"]            = "rbxassetid://122360365318466",
-    ["circle-dot"]         = "rbxassetid://82947033619201",
-    ["log-out"]            = "rbxassetid://84895399304975",
-    ["power"]              = "rbxassetid://96479131758775",
+local Assets = {
+	["crosshair"] = "rbxassetid://10709818534",
+	["target"] = "rbxassetid://10734977012",
+	["circle-dot"] = "rbxassetid://10709797837",
+	["eye"] = "rbxassetid://10723346959",
+	["eye-off"] = "rbxassetid://10723346871",
+	["sword"] = "rbxassetid://10734975486",
+	["swords"] = "rbxassetid://10734975692",
+	["axe"] = "rbxassetid://10709769508",
+	["car"] = "rbxassetid://10709789810",
+	["gauge"] = "rbxassetid://10723395708",
+	["server"] = "rbxassetid://10734949856",
+	["globe"] = "rbxassetid://10723404337",
+	["user"] = "rbxassetid://10747373176",
+	["users"] = "rbxassetid://10747373426",
+	["sliders-horizontal"] = "rbxassetid://10734963191",
+	["sliders"] = "rbxassetid://10734963400",
+	["code"] = "rbxassetid://10709810463",
+	["terminal"] = "rbxassetid://10734982144",
+	["file-code"] = "rbxassetid://10723356507",
+	["cpu"] = "rbxassetid://10709813383",
+	["zap"] = "rbxassetid://10709790202",
+	["search"] = "rbxassetid://10734943674",
+	["settings"] = "rbxassetid://10734950309",
+	["settings-2"] = "rbxassetid://10734950020",
+	["chevron-down"] = "rbxassetid://10709790948",
+	["chevron-left"] = "rbxassetid://10709791281",
+	["chevron-right"] = "rbxassetid://10709791437",
+	["chevron-up"] = "rbxassetid://10709791523",
+	["chevrons-up-down"] = "rbxassetid://10709797508",
+	["check"] = "rbxassetid://10709790644",
+	["check-circle"] = "rbxassetid://10709790387",
+	["plus"] = "rbxassetid://10734924532",
+	["plus-circle"] = "rbxassetid://10734923868",
+	["more-horizontal"] = "rbxassetid://10734897250",
+	["more-vertical"] = "rbxassetid://10734897387",
+	["alert-triangle"] = "rbxassetid://10709753149",
+	["info"] = "rbxassetid://10723415903",
+	["cloud"] = "rbxassetid://10709806740",
+	["box"] = "rbxassetid://10709782497",
+	["package"] = "rbxassetid://10734909540",
+	["sun"] = "rbxassetid://10734974297",
+	["moon"] = "rbxassetid://10734897102",
+	["languages"] = "rbxassetid://10723417703",
+	["scaling"] = "rbxassetid://10734942072",
+	["maximize-2"] = "rbxassetid://10734886496",
+	["palette"] = "rbxassetid://10734910430",
+	["copy"] = "rbxassetid://10709812159",
+	["key"] = "rbxassetid://10723416652",
+	["star"] = "rbxassetid://10734966248",
+	["sparkles"] = "rbxassetid://10734966248",
+	["menu"] = "rbxassetid://10734887784",
+	["list"] = "rbxassetid://10723433811",
+	["x"] = "rbxassetid://10747384394",
+	["arrow-up-down"] = "rbxassetid://10709768538",
+	["move"] = "rbxassetid://10734900011",
+	["shield"] = "rbxassetid://10734951847",
+	["shield-check"] = "rbxassetid://10734951367",
+	["ghost"] = "rbxassetid://10723396107",
+	["heart-pulse"] = "rbxassetid://10723406795",
+	["map-pin"] = "rbxassetid://10734886004",
+	["navigation"] = "rbxassetid://10734906744",
+	["locate"] = "rbxassetid://10723434557",
+	["keyboard"] = "rbxassetid://10723416765",
+	["monitor"] = "rbxassetid://10734896881",
+	["history"] = "rbxassetid://10723407335",
+	["layers"] = "rbxassetid://10723424505",
+	["layout-grid"] = "rbxassetid://10723424838",
 }
 
+local Aliases = {
+	General = "crosshair",
+	Visuals = "eye",
+	Weapon = "sword",
+	Vehicle = "car",
+	Server = "server",
+	Player = "user",
+	Misc = "sliders-horizontal",
+	Lua = "code",
+	Executor = "cpu",
+	Search = "search",
+	Gear = "settings",
+	ChevronR = "chevron-right",
+	ChevronD = "chevron-down",
+	ChevronL = "chevron-left",
+	ChevronU = "chevron-up",
+	Check = "check",
+	Plus = "plus",
+	Dots = "more-horizontal",
+	Warn = "alert-triangle",
+	Cloud = "cloud",
+	Sort = "arrow-up-down",
+	Box = "box",
+	Target = "target",
+	Eye = "eye",
+	Globe = "globe",
+	Users = "users",
+	Sliders = "sliders-horizontal",
+	Code = "code",
+	Cpu = "cpu",
+	Sun = "sun",
+	Lang = "languages",
+	Dpi = "scaling",
+	Style = "palette",
+	Key = "plus-circle",
+	Spark = "star",
+	Copy = "copy",
+	Close = "x",
+}
+
+local Icons = {}
+Icons.Assets = Assets
+Icons.Aliases = Aliases
+
 function Icons.Get(name)
-    local id = Icons.IDS[name]
-    if not id then
-        warn("[CelestialUI.Icons] unknown icon: " .. tostring(name))
-        return ""
-    end
-    return id
+	if not name then
+		return Assets["circle-dot"]
+	end
+	if Assets[name] then
+		return Assets[name]
+	end
+	local alias = Aliases[name]
+	if alias and Assets[alias] then
+		return Assets[alias]
+	end
+	local lower = string.lower(tostring(name))
+	if Assets[lower] then
+		return Assets[lower]
+	end
+	local stripped = lower:gsub("^lucide%-", "")
+	if Assets[stripped] then
+		return Assets[stripped]
+	end
+	return Assets["circle-dot"]
 end
 
-function Icons.Add(name, assetId)
-    Icons.IDS[name] = assetId
+function Icons.Apply(imgLabel, name)
+	if typeof(imgLabel) == "Instance" and imgLabel:IsA("ImageLabel") then
+		imgLabel.Image = Icons.Get(name)
+	end
+	return imgLabel
 end
 
--- Retarget an existing ImageLabel/ImageButton at an icon.
-function Icons.Apply(img, name, color)
-    img.Image = Icons.Get(name)
-    img.ScaleType = Enum.ScaleType.Fit
-    if color then
-        img.ImageColor3 = color
-    end
-    return img
-end
-
--- Lean ImageLabel icon. Tint via ImageColor3 (sources are white).
-function Icons.New(name, px, color, props)
-    props = props or {}
-    local img = Instance.new("ImageLabel")
-    img.Name = "Icon_" .. tostring(name)
-    img.BackgroundTransparency = 1
-    img.BorderSizePixel = 0
-    -- Decorative: never eats clicks/hover, input passes to the control below.
-    -- (Also fixes icons on top of buttons swallowing their clicks.)
-    img.Active = false
-    img.Image = Icons.Get(name)
-    img.ScaleType = Enum.ScaleType.Fit
-    img.ImageColor3 = color or Color3.fromRGB(255, 255, 255)
-    local s = px or 16
-    if props.Size == nil then
-        img.Size = UDim2.fromOffset(s, s)
-    end
-    for k, v in pairs(props) do
-        pcall(function() img[k] = v end)
-    end
-    return img
-end
-
--- Clickable icon.
-function Icons.Button(name, px, color, props)
-    props = props or {}
-    local b = Instance.new("ImageButton")
-    b.Name = "IconBtn_" .. tostring(name)
-    b.BackgroundTransparency = 1
-    b.BorderSizePixel = 0
-    b.Image = Icons.Get(name)
-    b.ScaleType = Enum.ScaleType.Fit
-    b.ImageColor3 = color or Color3.fromRGB(255, 255, 255)
-    b.AutoButtonColor = false
-    local s = px or 16
-    if props.Size == nil then
-        b.Size = UDim2.fromOffset(s, s)
-    end
-    for k, v in pairs(props) do
-        pcall(function() b[k] = v end)
-    end
-    return b
-end
-
--- Preload every vendored icon so first open has no pop-in.
-function Icons.Preload()
-    local list = {}
-    for _, id in pairs(Icons.IDS) do
-        local ok, inst = pcall(function()
-            local i = Instance.new("ImageLabel")
-            i.Image = id
-            return i
-        end)
-        if ok then table.insert(list, inst) end
-    end
-    pcall(function()
-        ContentProvider:PreloadAsync(list)
-    end)
-    for _, i in ipairs(list) do
-        pcall(function() i:Destroy() end)
-    end
+function Icons.Make(parent, name, size, color)
+	local img = Instance.new("ImageLabel")
+	img.Name = "Icon_" .. tostring(name)
+	img.BackgroundTransparency = 1
+	img.BorderSizePixel = 0
+	img.Image = Icons.Get(name)
+	img.ImageColor3 = color or Color3.fromRGB(255, 255, 255)
+	img.ScaleType = Enum.ScaleType.Fit
+	img.ResampleMode = Enum.ResamplerMode.Pixelated
+	if typeof(size) == "number" then
+		img.Size = UDim2.new(0, size, 0, size)
+	elseif typeof(size) == "UDim2" then
+		img.Size = size
+	else
+		img.Size = UDim2.new(0, 18, 0, 18)
+	end
+	img.ZIndex = 2
+	if parent then
+		img.Parent = parent
+	end
+	return img
 end
 
 return Icons
