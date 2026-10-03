@@ -2388,7 +2388,6 @@ local function need(name)
     return fn()
 end
 
- (build.py copies this block into the dist bundle)
 local Library = {}
 Library.Flags = {}
 Library._Accent = Color3.fromRGB(148, 150, 255)

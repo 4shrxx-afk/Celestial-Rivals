@@ -20,6 +20,61 @@ ORDER = [
 TAIL_MARKER = "-- Load order matters"
 
 
+def _strip_lua(src: str) -> str:
+    """Replace strings/comments with blanks so delimiters can be counted."""
+    out: list[str] = []
+    i, n = 0, len(src)
+    while i < n:
+        if src.startswith("--", i):
+            m = re.match(r"--\[(=*)\[", src[i:])
+            if m:
+                closer = "]" + m.group(1) + "]"
+                j = src.find(closer, i + m.end())
+                i = n if j < 0 else j + len(closer)
+                out.append(" ")
+                continue
+            j = src.find("\n", i)
+            i = n if j < 0 else j
+            out.append(" ")
+            continue
+        if src[i] in "\"'":
+            q = src[i]
+            j = i + 1
+            while j < n and src[j] != q:
+                if src[j] == "\\":
+                    j += 1
+                j += 1
+            i = j + 1
+            out.append('""')
+            continue
+        m = re.match(r"\[(=*)\[", src[i:])
+        if m:
+            closer = "]" + m.group(1) + "]"
+            j = src.find(closer, i + m.end())
+            i = n if j < 0 else j + len(closer)
+            out.append('""')
+            continue
+        out.append(src[i])
+        i += 1
+    return "".join(out)
+
+
+def check_structure(bundle: str) -> None:
+    """Fail loudly on structural breakage (broken bundles never ship)."""
+    code = _strip_lua(bundle)
+    for a, b in (("(", ")"), ("{", "}"), ("[", "]")):
+        if code.count(a) != code.count(b):
+            sys.exit(f"build failed: unbalanced {a}{b} ({code.count(a)} vs {code.count(b)})")
+    funcs = len(re.findall(r"\bfunction\b", code))
+    ends = len(re.findall(r"\bend\b", code))
+    if ends < funcs:
+        sys.exit(f"build failed: {ends} ends for {funcs} functions")
+    for token in ("local Library", "return Library", "local function need"):
+        if token not in code:
+            sys.exit(f"build failed: bundle missing {token!r}")
+    print(f"structure : delimiters balanced, {ends} ends / {funcs} functions")
+
+
 def main() -> None:
     embedded: dict[str, str] = {}
     for name in ORDER:
@@ -41,9 +96,18 @@ def main() -> None:
     # Without it, the tail's `Library._ThemeData = ...` indexes nil.
     HEAD_START = "-- BUNDLE_HEAD_START"
     HEAD_END = "-- BUNDLE_HEAD_END"
-    if HEAD_START not in init_src or HEAD_END not in init_src:
+    lines = init_src.splitlines(keepends=True)
+    try:
+        s = next(i for i, l in enumerate(lines) if HEAD_START in l)
+        e = next(i for i, l in enumerate(lines) if HEAD_END in l)
+    except StopIteration:
         sys.exit("build failed: BUNDLE_HEAD markers not found in Init.lua")
-    head = init_src.split(HEAD_START, 1)[1].split(HEAD_END, 1)[0].strip("\n")
+    if e <= s:
+        sys.exit("build failed: BUNDLE_HEAD_END comes before START")
+    # Lines strictly between the marker lines (immune to same-line trailing text).
+    head = "".join(lines[s + 1:e]).strip("\n")
+    if "local Library" not in head:
+        sys.exit("build failed: BUNDLE_HEAD block does not define Library")
 
     needed = sorted(set(re.findall(r'need\("([\w]+)"\)', tail)))
     missing = [n for n in needed if n not in embedded]
@@ -76,6 +140,7 @@ def main() -> None:
         tail,
     ]
     bundle = "\n".join(parts)
+    check_structure(bundle)
 
     out_dist = SRC / "dist" / "CelestialUI.lua"
     out_root = ROOT / "CelestialUI.lua"

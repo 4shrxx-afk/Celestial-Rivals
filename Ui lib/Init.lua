@@ -25,7 +25,9 @@
     EDIT ME: add new controls in the Controls table below.
 ]]
 
--- BUNDLE_HEAD_START (build.py copies this block into the dist bundle)
+-- NOTE: build.py copies the lines strictly between the markers below into the
+-- dist bundle. Keep both marker lines bare (nothing after them on the line).
+-- BUNDLE_HEAD_START
 local Library = {}
 Library.Flags = {}
 Library._Accent = Color3.fromRGB(148, 150, 255)
