@@ -6,7 +6,7 @@ local Keybind = {}
 
 function Keybind.Popup(layer, opts)
 	opts = opts or {}
-	local currentKey = opts.Key or "Mouse 5"
+	local currentKey = opts.Key or "Mouse5"
 	local currentMode = opts.Mode or "Toggle"
 	local currentVal = opts.Value == nil and true or opts.Value
 	local currentShow = opts.Show == nil and false or opts.Show
@@ -15,13 +15,15 @@ function Keybind.Popup(layer, opts)
 	local pop = Util.New("Frame", {
 		Name = "KeybindPopup",
 		BackgroundColor3 = Color3.fromRGB(22, 22, 30),
-		Size = UDim2.new(0, 230, 0, 230),
+		Size = UDim2.new(0, 250, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
 		BorderSizePixel = 0,
 		ZIndex = 80,
 	}, layer)
 	Util.Corner(pop, 12)
 	Util.Stroke(pop, Theme.Stroke, 1)
 	Util.Padding(pop, 12, 12, 12, 12)
+	Util.List(pop, Enum.FillDirection.Vertical, 8)
 
 	if opts.Position then
 		pop.Position = opts.Position
@@ -30,32 +32,66 @@ function Keybind.Popup(layer, opts)
 		pop.Position = UDim2.new(0.5, 0, 0.5, 0)
 	end
 
-	local keyBox = Util.New("TextButton", {
-		Size = UDim2.new(1, 0, 0, 44),
+	local head = Util.New("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 22),
+	}, pop)
+	Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -30, 1, 0),
+		Text = "Keybind",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 14,
+		Font = Theme.FontMed,
+		TextColor3 = Theme.Text,
+	}, head)
+	local closeBtn = Util.New("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, 0, 0.5, 0),
+		Size = UDim2.new(0, 22, 0, 22),
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+	}, head)
+	local closeIco = Icons.Make(closeBtn, "x", 14, Theme.TextMute)
+	closeIco.AnchorPoint = Vector2.new(0.5, 0.5)
+	closeIco.Position = UDim2.new(0.5, 0, 0.5, 0)
+
+	local keyBtn = Util.New("TextButton", {
+		Size = UDim2.new(1, 0, 0, 56),
 		BackgroundColor3 = Theme.Input,
 		Text = "",
 		AutoButtonColor = false,
 	}, pop)
-	Util.Corner(keyBox, 8)
-	local kIco = Icons.Make(keyBox, "plus-circle", 16, Theme.Text)
-	kIco.Position = UDim2.new(0, 10, 0.5, 0)
-	kIco.AnchorPoint = Vector2.new(0, 0.5)
+	Util.Corner(keyBtn, 10)
 	local keyLbl = Util.New("TextLabel", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 34, 0, 0),
-		Size = UDim2.new(1, -44, 1, 0),
+		Position = UDim2.new(0, 0, 0, 6),
+		Size = UDim2.new(1, 0, 0, 24),
 		Text = currentKey,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextSize = 13,
-		Font = Theme.FontMed,
+		TextSize = 16,
+		Font = Theme.FontBold,
 		TextColor3 = Theme.Text,
-	}, keyBox)
+	}, keyBtn)
+	local hintLbl = Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 0, 0, 30),
+		Size = UDim2.new(1, 0, 0, 16),
+		Text = "Click to change bind",
+		TextSize = 11,
+		Font = Theme.FontReg,
+		TextColor3 = Theme.TextMute,
+	}, keyBtn)
 
 	local listening = false
-	keyBox.MouseButton1Click:Connect(function()
+	keyBtn.MouseButton1Click:Connect(function()
+		if listening then
+			return
+		end
 		listening = true
 		keyLbl.Text = "..."
 		keyLbl.TextColor3 = Theme.Accent
+		hintLbl.Text = "Press any key or ESC"
 	end)
 
 	game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
@@ -74,6 +110,13 @@ function Keybind.Popup(layer, opts)
 			if name == "Unknown" or name == "" then
 				return
 			end
+			if name == "Escape" then
+				listening = false
+				keyLbl.Text = currentKey
+				keyLbl.TextColor3 = Theme.Text
+				hintLbl.Text = "Click to change bind"
+				return
+			end
 		else
 			local mb = string.match(t, "MouseButton(%d+)")
 			if mb then
@@ -85,14 +128,14 @@ function Keybind.Popup(layer, opts)
 		currentKey = name
 		keyLbl.Text = currentKey
 		keyLbl.TextColor3 = Theme.Text
+		hintLbl.Text = "Click to change bind"
 		listening = false
 		pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow })
 	end)
 
 	local modeRow = Util.New("Frame", {
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 0, 0, 56),
-		Size = UDim2.new(1, 0, 0, 44),
+		Size = UDim2.new(1, 0, 0, 40),
 	}, pop)
 
 	local tBtn = Util.New("TextButton", {
@@ -130,11 +173,10 @@ function Keybind.Popup(layer, opts)
 	tBtn.MouseButton1Click:Connect(function() currentMode = "Toggle" refreshMode() pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow }) end)
 	hBtn.MouseButton1Click:Connect(function() currentMode = "Hold" refreshMode() pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow }) end)
 
-	local function checkRow(y, label, val, onFlip)
+	local function checkRow(label, val, onFlip)
 		local r = Util.New("Frame", {
 			BackgroundTransparency = 1,
-			Position = UDim2.new(0, 0, 0, y),
-			Size = UDim2.new(1, 0, 0, 30),
+			Size = UDim2.new(1, 0, 0, 26),
 		}, pop)
 		Util.New("TextLabel", {
 			BackgroundTransparency = 1,
@@ -167,14 +209,23 @@ function Keybind.Popup(layer, opts)
 		return r
 	end
 
-	checkRow(112, "Value", currentVal, function(v) currentVal = v pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow }) end)
-	checkRow(142, "Show in binds", currentShow, function(v) currentShow = v pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow }) end)
+	checkRow("Value", currentVal, function(v) currentVal = v pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow }) end)
+	checkRow("Show in binds", currentShow, function(v) currentShow = v pcall(done, { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow }) end)
 
-	return {
+	local api = {
 		Frame = pop,
-		Close = function() pop:Destroy() end,
 		Get = function() return { Key = currentKey, Mode = currentMode, Value = currentVal, Show = currentShow } end,
 	}
+	function api.Close()
+		if pop and pop.Parent then
+			pop:Destroy()
+		end
+	end
+	closeBtn.MouseButton1Click:Connect(function()
+		api.Close()
+	end)
+
+	return api
 end
 
 function Keybind.HotkeyTable(layer, rows)

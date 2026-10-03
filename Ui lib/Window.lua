@@ -211,28 +211,13 @@ function Window.Create(opts)
 		Size = UDim2.new(1, 0, 0, 72),
 	}, root)
 
-	local logoIcon = Util.New("Frame", {
+	local logoIcon = Util.New("ImageLabel", {
 		BackgroundTransparency = 1,
 		Position = UDim2.new(0, 20, 0, 20),
 		Size = UDim2.new(0, 28, 0, 28),
+		Image = "rbxassetid://113584210603166",
+		BorderSizePixel = 0,
 	}, top)
-	local b1 = Util.New("Frame", {
-		Position = UDim2.new(0, 0, 0, 4),
-		Size = UDim2.new(0, 24, 0, 8),
-		BackgroundColor3 = Color3.fromRGB(95, 95, 150),
-		BorderSizePixel = 0,
-		Rotation = -8,
-	}, logoIcon)
-	Util.Corner(b1, 3)
-	local b2 = Util.New("Frame", {
-		Position = UDim2.new(0, 0, 0, 16),
-		Size = UDim2.new(0, 24, 0, 8),
-		BackgroundColor3 = Theme.Accent,
-		BorderSizePixel = 0,
-		Rotation = -8,
-	}, logoIcon)
-	Util.Corner(b2, 3)
-	ctx.BindAccent(function(a) b2.BackgroundColor3 = a end)
 
 	Util.New("TextLabel", {
 		BackgroundTransparency = 1,
@@ -244,9 +229,6 @@ function Window.Create(opts)
 		Font = Theme.FontBold,
 		TextColor3 = Theme.Text,
 	}, top)
-	local spark = Icons.Make(top, "star", 11, Theme.Accent)
-	spark.Position = UDim2.new(0, 196, 0, 20)
-	ctx.BindAccent(function(a) spark.ImageColor3 = a end)
 
 	local cfgBtn = Util.New("TextButton", {
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -274,19 +256,6 @@ function Window.Create(opts)
 	cfgChev.AnchorPoint = Vector2.new(1, 0.5)
 	cfgChev.Position = UDim2.new(1, -12, 0.5, 0)
 
-	local gear = Util.New("TextButton", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 14),
-		Size = UDim2.new(0, 44, 0, 44),
-		BackgroundColor3 = Theme.Panel,
-		Text = "",
-		AutoButtonColor = false,
-	}, top)
-	Util.Corner(gear, 10)
-	local gearIco = Icons.Make(gear, "settings", 18, Theme.Text)
-	gearIco.AnchorPoint = Vector2.new(0.5, 0.5)
-	gearIco.Position = UDim2.new(0.5, 0, 0.5, 0)
-
 	local body = Util.New("Frame", {
 		BackgroundTransparency = 1,
 		Position = UDim2.new(0, 0, 0, 72),
@@ -308,13 +277,67 @@ function Window.Create(opts)
 	local nav = Util.New("ScrollingFrame", {
 		BackgroundTransparency = 1,
 		Position = UDim2.new(0, 0, 0, 46),
-		Size = UDim2.new(1, 0, 1, -46),
+		Size = UDim2.new(1, 0, 1, -110),
 		ScrollBarThickness = 0,
 		CanvasSize = UDim2.new(0, 0, 0, 0),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		BorderSizePixel = 0,
 	}, side)
 	Util.List(nav, Enum.FillDirection.Vertical, 2)
+
+	local profile = Util.New("Frame", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, 0),
+		Size = UDim2.new(1, 0, 0, 56),
+		BackgroundColor3 = Theme.Panel,
+		BorderSizePixel = 0,
+	}, side)
+	Util.Corner(profile, 10)
+	Util.Padding(profile, 0, 10, 0, 10)
+	local pav = Util.New("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 0, 0.5, 0),
+		Size = UDim2.new(0, 36, 0, 36),
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, profile)
+	Util.Corner(pav, 18)
+	if avatarImage then
+		local pavImg = Util.New("ImageLabel", {
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			Image = avatarImage,
+			BorderSizePixel = 0,
+		}, pav)
+		Util.Corner(pavImg, 18)
+	else
+		local pavIco = Icons.Make(pav, "user", 20, Color3.fromRGB(10, 10, 14))
+		pavIco.AnchorPoint = Vector2.new(0.5, 0.5)
+		pavIco.Position = UDim2.new(0.5, 0, 0.5, 0)
+	end
+	Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 44, 0, 8),
+		Size = UDim2.new(1, -44, 0, 20),
+		Text = user,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 13,
+		Font = Theme.FontMed,
+		TextColor3 = Theme.Text,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	}, profile)
+	Util.New("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 44, 0, 28),
+		Size = UDim2.new(1, -44, 0, 18),
+		Text = (player and ("@" .. player.Name)) or ("Till:  " .. till),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 12,
+		Font = Theme.FontReg,
+		TextColor3 = Theme.TextMute,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	}, profile)
 
 	local crumb = Util.New("Frame", {
 		BackgroundTransparency = 1,
@@ -330,19 +353,6 @@ function Window.Create(opts)
 		TextSize = 14,
 		Font = Theme.FontMed,
 		TextColor3 = Theme.TextDim,
-	}, crumb)
-	local crumbSep = Icons.Make(crumb, "chevron-right", 14, Theme.TextMute)
-	crumbSep.Position = UDim2.new(0, 86, 0.5, 0)
-	crumbSep.AnchorPoint = Vector2.new(0, 0.5)
-	local crumbB = Util.New("TextLabel", {
-		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 106, 0, 0),
-		Size = UDim2.new(0, 200, 1, 0),
-		Text = "Player",
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextSize = 14,
-		Font = Theme.FontReg,
-		TextColor3 = Theme.TextMute,
 	}, crumb)
 
 	local contentArea = Util.New("Frame", {
@@ -373,259 +383,6 @@ function Window.Create(opts)
 
 	function winApi.SetAccent(c)
 		ctx.SetAccent(c)
-	end
-
-	local openSub = nil
-	local subLang, subDpi, subStyle
-	local settingsFrame
-	local settingsOpen = false
-
-	local function toggleSub(which)
-		if subLang then subLang:Destroy() subLang = nil end
-		if subDpi then subDpi:Destroy() subDpi = nil end
-		if subStyle then subStyle:Destroy() subStyle = nil end
-		if openSub == which then openSub = nil return end
-		openSub = which
-		if not settingsFrame then return end
-		if which == "lang" then
-			subLang = Util.New("Frame", {
-				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(0, -8, 0, 0),
-				Size = UDim2.new(0, 220, 0, 86),
-				BackgroundColor3 = Color3.fromRGB(22, 22, 30),
-				ZIndex = 71,
-			}, settingsFrame)
-			Util.Corner(subLang, 10)
-			Util.Stroke(subLang, Theme.Stroke, 1)
-			Util.Padding(subLang, 6, 8, 6, 8)
-			Util.List(subLang, Enum.FillDirection.Vertical, 4)
-			local langs = { "Russian", "English" }
-			local sel = "English"
-			for _, l in ipairs(langs) do
-				local b = Util.New("TextButton", {
-					Size = UDim2.new(1, 0, 0, 34),
-					BackgroundColor3 = l == sel and Color3.fromRGB(30, 30, 42) or Color3.fromRGB(22, 22, 30),
-					Text = "",
-					AutoButtonColor = false,
-				}, subLang)
-				Util.Corner(b, 6)
-				if l == sel then
-					local ck = Icons.Make(b, "check", 14, Theme.Text)
-					ck.Position = UDim2.new(0, 10, 0.5, 0)
-					ck.AnchorPoint = Vector2.new(0, 0.5)
-				end
-				Util.New("TextLabel", {
-					BackgroundTransparency = 1,
-					Position = UDim2.new(0, l == sel and 32 or 12, 0, 0),
-					Size = UDim2.new(1, -40, 1, 0),
-					Text = l,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					TextSize = 13,
-					Font = Theme.FontMed,
-					TextColor3 = Theme.Text,
-				}, b)
-				b.MouseButton1Click:Connect(function()
-					sel = l
-					local cur = openSub
-					openSub = nil
-					toggleSub(cur)
-					toggleSub(cur)
-				end)
-			end
-		elseif which == "dpi" then
-			subDpi = Util.New("Frame", {
-				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(0, -8, 0, 0),
-				Size = UDim2.new(0, 240, 0, 108),
-				BackgroundColor3 = Color3.fromRGB(22, 22, 30),
-				ZIndex = 71,
-			}, settingsFrame)
-			Util.Corner(subDpi, 10)
-			Util.Stroke(subDpi, Theme.Stroke, 1)
-			Util.Padding(subDpi, 10, 12, 10, 12)
-			local inner = Util.New("Frame", {
-				BackgroundTransparency = 1,
-				Size = UDim2.fromScale(1, 1),
-			}, subDpi)
-			SliderMod.Create(inner, { Name = "DPI", Min = 50, Max = 150, Default = 100, Callback = function(v)
-				scale.Scale = math.clamp(v / 100, 0.7, 1.4)
-			end }, ctx)
-			local ar = Util.New("Frame", {
-				BackgroundTransparency = 1,
-				Size = UDim2.new(1, 0, 0, 28),
-			}, inner)
-			Util.New("TextLabel", {
-				BackgroundTransparency = 1,
-				Size = UDim2.new(1, -40, 1, 0),
-				Text = "Auto scale",
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextSize = 13,
-				Font = Theme.FontMed,
-				TextColor3 = Theme.Text,
-			}, ar)
-			local ab = Util.New("TextButton", {
-				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, 0, 0.5, 0),
-				Size = UDim2.new(0, 20, 0, 20),
-				BackgroundColor3 = Theme.Accent,
-				Text = "",
-				AutoButtonColor = false,
-			}, ar)
-			Util.Corner(ab, 5)
-			local abCheck = Icons.Make(ab, "check", 13, Color3.fromRGB(18, 18, 28))
-			abCheck.AnchorPoint = Vector2.new(0.5, 0.5)
-			abCheck.Position = UDim2.new(0.5, 0, 0.5, 0)
-			local on = true
-			ab.MouseButton1Click:Connect(function()
-				on = not on
-				ab.BackgroundColor3 = on and Theme.Accent or Theme.CheckOff
-				abCheck.ImageTransparency = on and 0 or 1
-				if on then scale.Scale = 1 end
-			end)
-			ctx.BindAccent(function(a) if on then ab.BackgroundColor3 = a end end)
-		elseif which == "style" then
-			subStyle = Util.New("Frame", {
-				AnchorPoint = Vector2.new(0, 0),
-				Position = UDim2.new(1, 8, 0, 40),
-				Size = UDim2.new(0, 250, 0, 300),
-				BackgroundColor3 = Color3.fromRGB(22, 22, 30),
-				ZIndex = 71,
-			}, settingsFrame)
-			Util.Corner(subStyle, 12)
-			Util.Stroke(subStyle, Theme.Stroke, 1)
-			Util.Padding(subStyle, 8, 8, 8, 8)
-			local inner = Util.New("Frame", {
-				BackgroundTransparency = 1,
-				Size = UDim2.fromScale(1, 1),
-			}, subStyle)
-			ColorMod.Inline(inner, { Name = "Menu accent", Default = Theme.Accent, Callback = function(c) ctx.SetAccent(c) end }, ctx)
-		end
-	end
-
-	local function buildSettings()
-		if settingsFrame then settingsFrame:Destroy() settingsFrame = nil end
-		settingsFrame = Util.New("Frame", {
-			Name = "Settings",
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -12, 0, 64),
-			Size = UDim2.new(0, 260, 0, 320),
-			BackgroundColor3 = Color3.fromRGB(22, 22, 30),
-			BorderSizePixel = 0,
-			ZIndex = 70,
-			Visible = settingsOpen,
-		}, root)
-		Util.Corner(settingsFrame, 12)
-		Util.Stroke(settingsFrame, Theme.Stroke, 1)
-		Util.Padding(settingsFrame, 12, 12, 12, 12)
-
-		local prof = Util.New("Frame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 0, 52),
-		}, settingsFrame)
-		local av = Util.New("Frame", {
-			Size = UDim2.new(0, 44, 0, 44),
-			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-			BorderSizePixel = 0,
-			ClipsDescendants = true,
-		}, prof)
-		Util.Corner(av, 22)
-		if avatarImage then
-			local avImg = Util.New("ImageLabel", {
-				BackgroundTransparency = 1,
-				Size = UDim2.fromScale(1, 1),
-				Image = avatarImage,
-				BorderSizePixel = 0,
-			}, av)
-			Util.Corner(avImg, 22)
-		else
-			local avIco = Icons.Make(av, "user", 26, Color3.fromRGB(10, 10, 14))
-			avIco.AnchorPoint = Vector2.new(0.5, 0.5)
-			avIco.Position = UDim2.new(0.5, 0, 0.5, 0)
-		end
-		Util.New("TextLabel", {
-			BackgroundTransparency = 1,
-			Position = UDim2.new(0, 52, 0, 2),
-			Size = UDim2.new(1, -52, 0, 22),
-			Text = user,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextSize = 15,
-			Font = Theme.FontMed,
-			TextColor3 = Theme.Text,
-		}, prof)
-		Util.New("TextLabel", {
-			BackgroundTransparency = 1,
-			Position = UDim2.new(0, 52, 0, 24),
-			Size = UDim2.new(1, -52, 0, 20),
-			Text = "Till:  " .. till,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextSize = 13,
-			Font = Theme.FontReg,
-			TextColor3 = Theme.TextMute,
-		}, prof)
-
-		Util.New("Frame", {
-			BackgroundColor3 = Theme.Divider,
-			BackgroundTransparency = 0.3,
-			Size = UDim2.new(1, 0, 0, 1),
-		}, settingsFrame)
-
-		local rows = {
-			{ Ico = "plus-circle", Name = "Installed hotkeys", Id = "hotkeys" },
-			{ Ico = "languages", Name = "Menu language", Id = "lang" },
-			{ Ico = "scaling", Name = "DPI Menu", Id = "dpi" },
-			{ Ico = "palette", Name = "Styles", Id = "styles", Extra = true },
-		}
-		for _, r in ipairs(rows) do
-			local b = Util.New("TextButton", {
-				Size = UDim2.new(1, 0, 0, 42),
-				BackgroundColor3 = Color3.fromRGB(22, 22, 30),
-				Text = "",
-				AutoButtonColor = false,
-			}, settingsFrame)
-			Util.Corner(b, 8)
-			local ri = Icons.Make(b, r.Ico, 16, Theme.TextDim)
-			ri.Position = UDim2.new(0, 8, 0.5, 0)
-			ri.AnchorPoint = Vector2.new(0, 0.5)
-			Util.New("TextLabel", {
-				BackgroundTransparency = 1,
-				Position = UDim2.new(0, 34, 0, 0),
-				Size = UDim2.new(1, -70, 1, 0),
-				Text = r.Name,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextSize = 14,
-				Font = Theme.FontMed,
-				TextColor3 = Theme.Text,
-			}, b)
-			if r.Extra then
-				local sunIco = Icons.Make(b, "sun", 15, Theme.TextDim)
-				sunIco.AnchorPoint = Vector2.new(1, 0.5)
-				sunIco.Position = UDim2.new(1, -28, 0.5, 0)
-				local dot = Util.New("Frame", {
-					AnchorPoint = Vector2.new(1, 0.5),
-					Position = UDim2.new(1, -6, 0.5, 0),
-					Size = UDim2.new(0, 14, 0, 14),
-					BackgroundColor3 = Theme.Accent,
-					BorderSizePixel = 0,
-				}, b)
-				Util.Corner(dot, 7)
-				ctx.BindAccent(function(a) dot.BackgroundColor3 = a end)
-			end
-			local chv = Icons.Make(b, "chevron-right", 16, Theme.TextDim)
-			chv.AnchorPoint = Vector2.new(1, 0.5)
-			chv.Position = UDim2.new(1, -8, 0.5, 0)
-			b.MouseButton1Click:Connect(function()
-				if r.Id == "hotkeys" then
-					winApi.ShowHotkeys()
-				elseif r.Id == "lang" then
-					toggleSub("lang")
-				elseif r.Id == "dpi" then
-					toggleSub("dpi")
-				elseif r.Id == "styles" then
-					toggleSub("style")
-				end
-			end)
-		end
-		Util.List(settingsFrame, Enum.FillDirection.Vertical, 4)
 	end
 
 	function winApi.AddTab(def)
@@ -729,7 +486,6 @@ function Window.Create(opts)
 			ico.ImageColor3 = Theme.Text
 			indicator.Visible = true
 			crumbA.Text = tname
-			crumbB.Text = tname == "General" and "Player" or ""
 		end
 
 		navBtn.MouseButton1Click:Connect(select)
@@ -907,19 +663,6 @@ function Window.Create(opts)
 
 		return tab
 	end
-
-	gear.MouseButton1Click:Connect(function()
-		settingsOpen = not settingsOpen
-		if settingsOpen then
-			buildSettings()
-		else
-			if settingsFrame then settingsFrame.Visible = false end
-			if subLang then subLang:Destroy() subLang = nil end
-			if subDpi then subDpi:Destroy() subDpi = nil end
-			if subStyle then subStyle:Destroy() subStyle = nil end
-			openSub = nil
-		end
-	end)
 
 	local presetFrame
 	local function closePreset()
