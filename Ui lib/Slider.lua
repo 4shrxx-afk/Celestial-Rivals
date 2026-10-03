@@ -79,25 +79,59 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
         Parent = track,
     })
     Utils.Corner(knob, 0, true)
-    table.insert(Window._AccentUpdaters, function(c) fill.BackgroundColor3 = c end)
+    -- Soft accent ring shown on hover/drag (modern slider feel).
+    local ring = Utils.Stroke(knob, Window.Accent, 1, 2)
+    table.insert(Window._AccentUpdaters, function(c)
+        fill.BackgroundColor3 = c
+        ring.Color = c
+    end)
+    valLbl:SetAttribute("TRole", "Dim")
 
     local dragging = false
-    local function setFromX(x)
+    local function paintKnob()
+        local target = dragging and 17 or 14
+        Utils.Tween(knob, { Size = UDim2.new(0, target, 0, target) }, 0.12)
+        ring.Transparency = dragging and 0.25 or 1
+        valLbl.TextColor3 = dragging and Window.Accent or Window.Theme.TextDim
+    end
+    knob.MouseEnter:Connect(function()
+        if dragging then return end
+        Utils.Tween(knob, { Size = UDim2.new(0, 15, 0, 15) }, 0.1)
+        ring.Transparency = 0.25
+    end)
+    knob.MouseLeave:Connect(function()
+        if dragging then return end
+        Utils.Tween(knob, { Size = UDim2.new(0, 14, 0, 14) }, 0.1)
+        ring.Transparency = 1
+    end)
+    local function setFromX(x, animate)
         local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
         val = min + rel * (max - min)
         if decimals == 0 then val = math.floor(val + 0.5) end
         Library.Flags[rowName] = val
         valLbl.Text = fmt(val)
-        fill.Size = UDim2.new(rel, 0, 1, 0)
-        knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        if animate then
+            Utils.Tween(fill, { Size = UDim2.new(rel, 0, 1, 0) }, 0.1)
+            Utils.Tween(knob, { Position = UDim2.new(rel, 0, 0.5, 0) }, 0.1)
+        else
+            fill.Size = UDim2.new(rel, 0, 1, 0)
+            knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        end
         if t.Callback then task.spawn(t.Callback, val) end
     end
-
     track.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            setFromX(input.Position.X)
+            paintKnob()
+            setFromX(input.Position.X, true)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+            paintKnob()
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
@@ -120,8 +154,8 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
             Library.Flags[rowName] = v
             local rel = (v - min) / math.max(max - min, 0.001)
             valLbl.Text = fmt(v)
-            fill.Size = UDim2.new(rel, 0, 1, 0)
-            knob.Position = UDim2.new(rel, 0, 0.5, 0)
+            Utils.Tween(fill, { Size = UDim2.new(rel, 0, 1, 0) }, 0.12)
+            Utils.Tween(knob, { Position = UDim2.new(rel, 0, 0.5, 0) }, 0.12)
         end,
         Get = function() return val end,
         Row = row,
@@ -195,6 +229,15 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
     })
     Utils.Corner(kB, 0, true)
     table.insert(Window._AccentUpdaters, function(c) fill.BackgroundColor3 = c end)
+    valLbl:SetAttribute("TRole", "Dim")
+
+    local dragWhich = nil
+    local function paintRange()
+        local s = dragWhich and 17 or 14
+        kA.Size = UDim2.new(0, s, 0, s)
+        kB.Size = UDim2.new(0, s, 0, s)
+        valLbl.TextColor3 = dragWhich and Window.Accent or Window.Theme.TextDim
+    end
 
     local function refresh(fire)
         local ra, rb = (a - min) / (max - min), (b - min) / (max - min)
@@ -210,20 +253,21 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
     end
     refresh(false)
 
-    local dragWhich = nil
     track.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
             local x = input.Position.X
             local pa = track.AbsolutePosition.X + ((a - min) / (max - min)) * track.AbsoluteSize.X
             local pb = track.AbsolutePosition.X + ((b - min) / (max - min)) * track.AbsoluteSize.X
-            dragWhich = (math.abs(x - pa) < math.abs(x - pb)) and "A" or "B"
+                    dragWhich = (math.abs(x - pa) < math.abs(x - pb)) and "A" or "B"
+                    paintRange()
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
             dragWhich = nil
+            paintRange()
         end
     end)
     UserInputService.InputChanged:Connect(function(input)

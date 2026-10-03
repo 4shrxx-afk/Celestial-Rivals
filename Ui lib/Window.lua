@@ -67,20 +67,8 @@ return function(Library, deps)
             BorderSizePixel = 0,
             Parent = Gui,
         })
-        local glowA = Utils.New("Frame", {
-            AnchorPoint = Vector2.new(0, 0),
-            Position = UDim2.new(0, 0, 0, 0),
-            Size = UDim2.new(0.35, 0, 0.5, 0),
-            BackgroundColor3 = Color3.fromRGB(90, 70, 160),
-            BackgroundTransparency = 0.85,
-            BorderSizePixel = 0,
-            Parent = Backdrop,
-        })
-        Utils.Corner(glowA, 0, true)
-        local glowB = glowA:Clone()
-        glowB.AnchorPoint = Vector2.new(1, 1)
-        glowB.Position = UDim2.new(1, 0, 1, 0)
-        glowB.Parent = Backdrop
+        -- Flat dim backdrop (no glow images): keeps full focus on the window.
+        -- (Purple corner glows were removed: they fought the dark theme.)
 
         local Scale = Utils.New("UIScale", { Scale = Library._Scale or 1 })
 

@@ -93,6 +93,9 @@ function Icons.New(name, px, color, props)
     img.Name = "Icon_" .. tostring(name)
     img.BackgroundTransparency = 1
     img.BorderSizePixel = 0
+    -- Decorative: never eats clicks/hover, input passes to the control below.
+    -- (Also fixes icons on top of buttons swallowing their clicks.)
+    img.Active = false
     img.Image = Icons.Get(name)
     img.ScaleType = Enum.ScaleType.Fit
     img.ImageColor3 = color or Color3.fromRGB(255, 255, 255)

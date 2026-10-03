@@ -59,6 +59,7 @@ return function(Tab, Utils, ThemeData, Library, t)
     end
 
     local optBtns = {}
+    local optTicks = {}
     for i, opt in ipairs(options) do
         local isSel = (opt == selected)
         local ob = Utils.New("TextButton", {
@@ -76,18 +77,37 @@ return function(Tab, Utils, ThemeData, Library, t)
         })
         Utils.Corner(ob, 6)
         Utils.Pad(ob, 12, 0, 0, 0)
+        local tick = Icons.New("check", 12, Color3.fromRGB(255, 255, 255), {
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, -10, 0.5, 0),
+            Visible = isSel,
+            Parent = ob,
+        })
+        optTicks[i] = tick
+        ob.MouseEnter:Connect(function()
+            if selected ~= opt then
+                ob.BackgroundColor3 = Window.Theme.RowHover
+                ob.BackgroundTransparency = 0
+            end
+        end)
+        ob.MouseLeave:Connect(function()
+            if selected ~= opt then
+                ob.BackgroundTransparency = 1
+            end
+        end)
         ob.MouseButton1Click:Connect(function()
             selected = opt
             Library.Flags[rowName] = opt
             selLbl.Text = tostring(opt)
-            for _, o2 in ipairs(optBtns) do
-                local on = (o2.Text == tostring(opt))
+            for j, o2 in ipairs(optBtns) do
+                local on = (options[j] == opt)
                 o2.BackgroundTransparency = on and 0.85 or 1
                 if on then o2.BackgroundColor3 = Window.Accent end
                 o2.TextColor3 = on and Color3.fromRGB(255, 255, 255) or Window.Theme.TextDim
+                optTicks[j].Visible = on
             end
             open = false
-            Icons.Apply(chev, "chevron-down")
+            Utils.Tween(chev, { Rotation = 0 }, 0.2)
             setH(36)
             if t.Callback then task.spawn(t.Callback, opt) end
         end)
@@ -96,7 +116,7 @@ return function(Tab, Utils, ThemeData, Library, t)
 
     clickArea.MouseButton1Click:Connect(function()
         open = not open
-        Icons.Apply(chev, open and "chevron-up" or "chevron-down")
+        Utils.Tween(chev, { Rotation = open and 180 or 0 }, 0.2)
         setH(open and (36 + listH + 8) or 36)
     end)
 

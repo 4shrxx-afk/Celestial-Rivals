@@ -407,6 +407,9 @@ function Icons.New(name, px, color, props)
     img.Name = "Icon_" .. tostring(name)
     img.BackgroundTransparency = 1
     img.BorderSizePixel = 0
+    -- Decorative: never eats clicks/hover, input passes to the control below.
+    -- (Also fixes icons on top of buttons swallowing their clicks.)
+    img.Active = false
     img.Image = Icons.Get(name)
     img.ScaleType = Enum.ScaleType.Fit
     img.ImageColor3 = color or Color3.fromRGB(255, 255, 255)
@@ -1480,12 +1483,14 @@ return function(Tab, Utils, ThemeData, Library, t)
 
     local row = Tab:_Row(rowName, 44)
 
+    local OFF = Color3.fromRGB(36, 36, 44)
+    local OFF_HOVER = Color3.fromRGB(52, 52, 64)
     local box = Utils.New("TextButton", {
         Text = "",
         AnchorPoint = Vector2.new(1, 0.5),
         Position = UDim2.new(1, -12, 0.5, 0),
         Size = UDim2.new(0, 26, 0, 26),
-        BackgroundColor3 = state and Window.Accent or Color3.fromRGB(36, 36, 44),
+        BackgroundColor3 = state and Window.Accent or OFF,
         BorderSizePixel = 0,
         AutoButtonColor = false,
         Parent = row,
@@ -1499,6 +1504,9 @@ return function(Tab, Utils, ThemeData, Library, t)
         Visible = state,
         Parent = box,
     })
+    if not state then
+        check.Size = UDim2.new(0, 0, 0, 0) -- pops in with a tween on enable
+    end
 
     if t.More then
         local dots = Icons.New("ellipsis", 16, Window.Theme.TextDark, {
@@ -1513,14 +1521,33 @@ return function(Tab, Utils, ThemeData, Library, t)
         state = v
         Library.Flags[rowName] = v
         row:SetAttribute("On", v and true or nil)
-        check.Visible = v
-        Utils.Tween(box, { BackgroundColor3 = v and Window.Accent or Color3.fromRGB(36, 36, 44) }, 0.18)
+        Utils.Tween(box, { BackgroundColor3 = v and Window.Accent or OFF }, 0.18)
+        Utils.Tween(box, { Size = UDim2.new(0, 26, 0, 26) }, 0.1)
+        if v then
+            check.Visible = true
+            check.Size = UDim2.new(0, 0, 0, 0)
+            Utils.Tween(check, { Size = UDim2.new(0, 14, 0, 14) }, 0.22, Enum.EasingStyle.Back)
+        else
+            check.Visible = false
+        end
         if not silent and t.Callback then
             task.spawn(t.Callback, v)
         end
     end
 
     box.MouseButton1Click:Connect(function() apply(not state) end)
+    box.MouseEnter:Connect(function()
+        if not state then Utils.Tween(box, { BackgroundColor3 = OFF_HOVER }, 0.12) end
+    end)
+    box.MouseLeave:Connect(function()
+        if not state then Utils.Tween(box, { BackgroundColor3 = OFF }, 0.12) end
+    end)
+    box.MouseButton1Down:Connect(function()
+        Utils.Tween(box, { Size = UDim2.new(0, 23, 0, 23) }, 0.08)
+    end)
+    box.MouseButton1Up:Connect(function()
+        Utils.Tween(box, { Size = UDim2.new(0, 26, 0, 26) }, 0.12)
+    end)
     table.insert(Window._AccentUpdaters, function(c)
         if state then box.BackgroundColor3 = c end
     end)
@@ -1616,25 +1643,59 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
         Parent = track,
     })
     Utils.Corner(knob, 0, true)
-    table.insert(Window._AccentUpdaters, function(c) fill.BackgroundColor3 = c end)
+    -- Soft accent ring shown on hover/drag (modern slider feel).
+    local ring = Utils.Stroke(knob, Window.Accent, 1, 2)
+    table.insert(Window._AccentUpdaters, function(c)
+        fill.BackgroundColor3 = c
+        ring.Color = c
+    end)
+    valLbl:SetAttribute("TRole", "Dim")
 
     local dragging = false
-    local function setFromX(x)
+    local function paintKnob()
+        local target = dragging and 17 or 14
+        Utils.Tween(knob, { Size = UDim2.new(0, target, 0, target) }, 0.12)
+        ring.Transparency = dragging and 0.25 or 1
+        valLbl.TextColor3 = dragging and Window.Accent or Window.Theme.TextDim
+    end
+    knob.MouseEnter:Connect(function()
+        if dragging then return end
+        Utils.Tween(knob, { Size = UDim2.new(0, 15, 0, 15) }, 0.1)
+        ring.Transparency = 0.25
+    end)
+    knob.MouseLeave:Connect(function()
+        if dragging then return end
+        Utils.Tween(knob, { Size = UDim2.new(0, 14, 0, 14) }, 0.1)
+        ring.Transparency = 1
+    end)
+    local function setFromX(x, animate)
         local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
         val = min + rel * (max - min)
         if decimals == 0 then val = math.floor(val + 0.5) end
         Library.Flags[rowName] = val
         valLbl.Text = fmt(val)
-        fill.Size = UDim2.new(rel, 0, 1, 0)
-        knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        if animate then
+            Utils.Tween(fill, { Size = UDim2.new(rel, 0, 1, 0) }, 0.1)
+            Utils.Tween(knob, { Position = UDim2.new(rel, 0, 0.5, 0) }, 0.1)
+        else
+            fill.Size = UDim2.new(rel, 0, 1, 0)
+            knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        end
         if t.Callback then task.spawn(t.Callback, val) end
     end
-
     track.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            setFromX(input.Position.X)
+            paintKnob()
+            setFromX(input.Position.X, true)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+            paintKnob()
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
@@ -1657,8 +1718,8 @@ function Slider.CreateSlider(Tab, Utils, ThemeData, Library, t)
             Library.Flags[rowName] = v
             local rel = (v - min) / math.max(max - min, 0.001)
             valLbl.Text = fmt(v)
-            fill.Size = UDim2.new(rel, 0, 1, 0)
-            knob.Position = UDim2.new(rel, 0, 0.5, 0)
+            Utils.Tween(fill, { Size = UDim2.new(rel, 0, 1, 0) }, 0.12)
+            Utils.Tween(knob, { Position = UDim2.new(rel, 0, 0.5, 0) }, 0.12)
         end,
         Get = function() return val end,
         Row = row,
@@ -1732,6 +1793,15 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
     })
     Utils.Corner(kB, 0, true)
     table.insert(Window._AccentUpdaters, function(c) fill.BackgroundColor3 = c end)
+    valLbl:SetAttribute("TRole", "Dim")
+
+    local dragWhich = nil
+    local function paintRange()
+        local s = dragWhich and 17 or 14
+        kA.Size = UDim2.new(0, s, 0, s)
+        kB.Size = UDim2.new(0, s, 0, s)
+        valLbl.TextColor3 = dragWhich and Window.Accent or Window.Theme.TextDim
+    end
 
     local function refresh(fire)
         local ra, rb = (a - min) / (max - min), (b - min) / (max - min)
@@ -1747,20 +1817,21 @@ function Slider.CreateRange(Tab, Utils, ThemeData, Library, t)
     end
     refresh(false)
 
-    local dragWhich = nil
     track.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
             local x = input.Position.X
             local pa = track.AbsolutePosition.X + ((a - min) / (max - min)) * track.AbsoluteSize.X
             local pb = track.AbsolutePosition.X + ((b - min) / (max - min)) * track.AbsoluteSize.X
-            dragWhich = (math.abs(x - pa) < math.abs(x - pb)) and "A" or "B"
+                    dragWhich = (math.abs(x - pa) < math.abs(x - pb)) and "A" or "B"
+                    paintRange()
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
             dragWhich = nil
+            paintRange()
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
@@ -1843,6 +1914,7 @@ return function(Tab, Utils, ThemeData, Library, t)
     end
 
     local optBtns = {}
+    local optTicks = {}
     for i, opt in ipairs(options) do
         local isSel = (opt == selected)
         local ob = Utils.New("TextButton", {
@@ -1860,18 +1932,37 @@ return function(Tab, Utils, ThemeData, Library, t)
         })
         Utils.Corner(ob, 6)
         Utils.Pad(ob, 12, 0, 0, 0)
+        local tick = Icons.New("check", 12, Color3.fromRGB(255, 255, 255), {
+            AnchorPoint = Vector2.new(1, 0.5),
+            Position = UDim2.new(1, -10, 0.5, 0),
+            Visible = isSel,
+            Parent = ob,
+        })
+        optTicks[i] = tick
+        ob.MouseEnter:Connect(function()
+            if selected ~= opt then
+                ob.BackgroundColor3 = Window.Theme.RowHover
+                ob.BackgroundTransparency = 0
+            end
+        end)
+        ob.MouseLeave:Connect(function()
+            if selected ~= opt then
+                ob.BackgroundTransparency = 1
+            end
+        end)
         ob.MouseButton1Click:Connect(function()
             selected = opt
             Library.Flags[rowName] = opt
             selLbl.Text = tostring(opt)
-            for _, o2 in ipairs(optBtns) do
-                local on = (o2.Text == tostring(opt))
+            for j, o2 in ipairs(optBtns) do
+                local on = (options[j] == opt)
                 o2.BackgroundTransparency = on and 0.85 or 1
                 if on then o2.BackgroundColor3 = Window.Accent end
                 o2.TextColor3 = on and Color3.fromRGB(255, 255, 255) or Window.Theme.TextDim
+                optTicks[j].Visible = on
             end
             open = false
-            Icons.Apply(chev, "chevron-down")
+            Utils.Tween(chev, { Rotation = 0 }, 0.2)
             setH(36)
             if t.Callback then task.spawn(t.Callback, opt) end
         end)
@@ -1880,7 +1971,7 @@ return function(Tab, Utils, ThemeData, Library, t)
 
     clickArea.MouseButton1Click:Connect(function()
         open = not open
-        Icons.Apply(chev, open and "chevron-up" or "chevron-down")
+        Utils.Tween(chev, { Rotation = open and 180 or 0 }, 0.2)
         setH(open and (36 + listH + 8) or 36)
     end)
 
@@ -1966,20 +2057,8 @@ return function(Library, deps)
             BorderSizePixel = 0,
             Parent = Gui,
         })
-        local glowA = Utils.New("Frame", {
-            AnchorPoint = Vector2.new(0, 0),
-            Position = UDim2.new(0, 0, 0, 0),
-            Size = UDim2.new(0.35, 0, 0.5, 0),
-            BackgroundColor3 = Color3.fromRGB(90, 70, 160),
-            BackgroundTransparency = 0.85,
-            BorderSizePixel = 0,
-            Parent = Backdrop,
-        })
-        Utils.Corner(glowA, 0, true)
-        local glowB = glowA:Clone()
-        glowB.AnchorPoint = Vector2.new(1, 1)
-        glowB.Position = UDim2.new(1, 0, 1, 0)
-        glowB.Parent = Backdrop
+        -- Flat dim backdrop (no glow images): keeps full focus on the window.
+        -- (Purple corner glows were removed: they fought the dark theme.)
 
         local Scale = Utils.New("UIScale", { Scale = Library._Scale or 1 })
 

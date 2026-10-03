@@ -16,12 +16,14 @@ return function(Tab, Utils, ThemeData, Library, t)
 
     local row = Tab:_Row(rowName, 44)
 
+    local OFF = Color3.fromRGB(36, 36, 44)
+    local OFF_HOVER = Color3.fromRGB(52, 52, 64)
     local box = Utils.New("TextButton", {
         Text = "",
         AnchorPoint = Vector2.new(1, 0.5),
         Position = UDim2.new(1, -12, 0.5, 0),
         Size = UDim2.new(0, 26, 0, 26),
-        BackgroundColor3 = state and Window.Accent or Color3.fromRGB(36, 36, 44),
+        BackgroundColor3 = state and Window.Accent or OFF,
         BorderSizePixel = 0,
         AutoButtonColor = false,
         Parent = row,
@@ -35,6 +37,9 @@ return function(Tab, Utils, ThemeData, Library, t)
         Visible = state,
         Parent = box,
     })
+    if not state then
+        check.Size = UDim2.new(0, 0, 0, 0) -- pops in with a tween on enable
+    end
 
     if t.More then
         local dots = Icons.New("ellipsis", 16, Window.Theme.TextDark, {
@@ -49,14 +54,33 @@ return function(Tab, Utils, ThemeData, Library, t)
         state = v
         Library.Flags[rowName] = v
         row:SetAttribute("On", v and true or nil)
-        check.Visible = v
-        Utils.Tween(box, { BackgroundColor3 = v and Window.Accent or Color3.fromRGB(36, 36, 44) }, 0.18)
+        Utils.Tween(box, { BackgroundColor3 = v and Window.Accent or OFF }, 0.18)
+        Utils.Tween(box, { Size = UDim2.new(0, 26, 0, 26) }, 0.1)
+        if v then
+            check.Visible = true
+            check.Size = UDim2.new(0, 0, 0, 0)
+            Utils.Tween(check, { Size = UDim2.new(0, 14, 0, 14) }, 0.22, Enum.EasingStyle.Back)
+        else
+            check.Visible = false
+        end
         if not silent and t.Callback then
             task.spawn(t.Callback, v)
         end
     end
 
     box.MouseButton1Click:Connect(function() apply(not state) end)
+    box.MouseEnter:Connect(function()
+        if not state then Utils.Tween(box, { BackgroundColor3 = OFF_HOVER }, 0.12) end
+    end)
+    box.MouseLeave:Connect(function()
+        if not state then Utils.Tween(box, { BackgroundColor3 = OFF }, 0.12) end
+    end)
+    box.MouseButton1Down:Connect(function()
+        Utils.Tween(box, { Size = UDim2.new(0, 23, 0, 23) }, 0.08)
+    end)
+    box.MouseButton1Up:Connect(function()
+        Utils.Tween(box, { Size = UDim2.new(0, 26, 0, 26) }, 0.12)
+    end)
     table.insert(Window._AccentUpdaters, function(c)
         if state then box.BackgroundColor3 = c end
     end)
