@@ -19,15 +19,6 @@ function Window.Create(opts)
 	local player = Players.LocalPlayer
 	local user = opts.User or (player and player.DisplayName) or "Past Owl"
 	local till = opts.Till or "1 Jan 2025"
-	local avatarImage
-	pcall(function()
-		if player then
-			local img, ready = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
-			if ready then
-				avatarImage = img
-			end
-		end
-	end)
 
 	local ctx = {
 		accentCbs = {},
@@ -102,7 +93,16 @@ function Window.Create(opts)
 			table.insert(binds, { api = api, key = normKey(data.Key), mode = data.Mode or "Toggle" })
 		end
 	end
-	UserInputService.InputBegan:Connect(function(input, gpe)
+	local sharedConns = rawget(_G, "__CelestialConns")
+	if type(sharedConns) ~= "table" then
+		sharedConns = {}
+		_G.__CelestialConns = sharedConns
+	end
+	local function trackConn(c)
+		table.insert(sharedConns, c)
+		return c
+	end
+	trackConn(UserInputService.InputBegan:Connect(function(input, gpe)
 		if gpe then
 			return
 		end
@@ -120,8 +120,8 @@ function Window.Create(opts)
 				end
 			end
 		end
-	end)
-	UserInputService.InputEnded:Connect(function(input)
+	end))
+	trackConn(UserInputService.InputEnded:Connect(function(input)
 		local k = keyNameOf(input)
 		if not k then
 			return
@@ -132,8 +132,8 @@ function Window.Create(opts)
 				b.api.Set(false)
 			end
 		end
-	end)
-	UserInputService.InputBegan:Connect(function(input)
+	end))
+	trackConn(UserInputService.InputBegan:Connect(function(input)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
 			return
 		end
@@ -155,7 +155,7 @@ function Window.Create(opts)
 				end
 			end
 		end
-	end)
+	end))
 
 	local gui = Util.New("ScreenGui", {
 		Name = "EvenesceGui",
@@ -170,6 +170,13 @@ function Window.Create(opts)
 	end
 	if not parented then
 		gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	end
+	for _, ch in ipairs(gui.Parent:GetChildren()) do
+		if ch ~= gui and ch.Name == "EvenesceGui" then
+			pcall(function()
+				ch:Destroy()
+			end)
+		end
 	end
 
 	local popups = Util.New("Frame", {
@@ -303,19 +310,27 @@ function Window.Create(opts)
 		ClipsDescendants = true,
 	}, profile)
 	Util.Corner(pav, 18)
-	if avatarImage then
-		local pavImg = Util.New("ImageLabel", {
-			BackgroundTransparency = 1,
-			Size = UDim2.fromScale(1, 1),
-			Image = avatarImage,
-			BorderSizePixel = 0,
-		}, pav)
-		Util.Corner(pavImg, 18)
-	else
-		local pavIco = Icons.Make(pav, "user", 20, Color3.fromRGB(10, 10, 14))
-		pavIco.AnchorPoint = Vector2.new(0.5, 0.5)
-		pavIco.Position = UDim2.new(0.5, 0, 0.5, 0)
-	end
+	local pavIco = Icons.Make(pav, "user", 20, Color3.fromRGB(10, 10, 14))
+	pavIco.AnchorPoint = Vector2.new(0.5, 0.5)
+	pavIco.Position = UDim2.new(0.5, 0, 0.5, 0)
+	task.spawn(function()
+		if not player then
+			return
+		end
+		local ok, img, ready = pcall(function()
+			return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+		end)
+		if ok and ready and img and pav.Parent then
+			pavIco:Destroy()
+			local pavImg = Util.New("ImageLabel", {
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+				Image = img,
+				BorderSizePixel = 0,
+			}, pav)
+			Util.Corner(pavImg, 18)
+		end
+	end)
 	Util.New("TextLabel", {
 		BackgroundTransparency = 1,
 		Position = UDim2.new(0, 44, 0, 8),
@@ -905,12 +920,12 @@ function Window.Create(opts)
 		doSearch(searchBox.Box.Text)
 	end)
 
-	UserInputService.InputBegan:Connect(function(input, gpe)
+	trackConn(UserInputService.InputBegan:Connect(function(input, gpe)
 		if gpe then return end
 		if input.KeyCode == Enum.KeyCode.RightShift then
 			root.Visible = not root.Visible
 		end
-	end)
+	end))
 
 	winApi.Gui = gui
 	winApi.Root = root

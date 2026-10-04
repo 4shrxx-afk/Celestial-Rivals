@@ -146,7 +146,7 @@ function Dropdown.Create(parent, opts, ctx)
 	end)
 
 	game:GetService("UserInputService").InputBegan:Connect(function(input)
-		if open and input.UserInputType == Enum.UserInputType.MouseButton1 and listFrame then
+		if open and input.UserInputType == Enum.UserInputType.MouseButton1 and listFrame and listFrame.Parent then
 			local p = input.Position
 			local aPos = listFrame.AbsolutePosition
 			local aSize = listFrame.AbsoluteSize
